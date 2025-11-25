@@ -2,13 +2,16 @@
   "name": "@coreviz/sdk",
   "version": "1.0.0",
   "description": "CoreViz SDK",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/CoreViz/api.git"
+    "url": "git+https://github.com/coreviz/sdk.git"
   },
   "keywords": [
     "api",
@@ -17,7 +20,14 @@
   "author": "CoreViz Team",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/CoreViz/api/issues"
+    "url": "https://github.com/coreviz/sdk/issues"
   },
-  "homepage": "https://github.com/CoreViz/api#readme"
+  "homepage": "https://github.com/coreviz/sdk#readme",
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "sharp": "^0.34.5"
+  }
 }

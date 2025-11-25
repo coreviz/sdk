@@ -1,18 +1,18 @@
-# @coreviz/api
+# @coreviz/sdk
 
-CoreViz API package - A JavaScript/Node.js package for CoreViz APIs.
+CoreViz SDK - A JavaScript/Node.js interface for CoreViz's Vision AI APIs.
 
 ## Installation
 
 ```bash
-npm install @coreviz/api
+npm install @coreviz/sdk
 ```
 
 ## Usage
 
 ```js
-const corevizApi = require('@coreviz/api');
-corevizApi();
+const coreviz = require('@coreviz/sdk');
+coreviz();
 ```
 
 ## Development
