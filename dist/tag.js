@@ -1,20 +1,10 @@
-import { resize } from "./resize";
-
-export interface TagOptions {
-    prompt: string;
-    options?: string[];
-    multiple?: boolean;
-}
-
-export interface TagResponse {
-    tags: string[];
-    raw?: unknown;
-}
-
-export async function tag(image: string, options: TagOptions): Promise<TagResponse> {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.tag = tag;
+const resize_1 = require("./resize");
+async function tag(image, options) {
     try {
-        const resizedImage = await resize(image);
-
+        const resizedImage = await (0, resize_1.resize)(image);
         const response = await fetch("https://lab.coreviz.io/api/ai/tag", {
             method: 'POST',
             headers: {
@@ -28,22 +18,13 @@ export async function tag(image: string, options: TagOptions): Promise<TagRespon
                 multiple: options.multiple ?? true,
             }),
         });
-
         if (!response.ok) {
             throw new Error(`Failed to tag image (${response.status})`);
         }
-
-        const data = await response.json() as {
-            error?: string;
-            tags?: string[];
-            result?: string[];
-            tag?: string;
-        };
-
+        const data = await response.json();
         if (data.error) {
             throw new Error(data.error);
         }
-
         const tags = Array.isArray(data.tags)
             ? data.tags
             : Array.isArray(data.result)
@@ -51,15 +32,13 @@ export async function tag(image: string, options: TagOptions): Promise<TagRespon
                 : typeof data.tag === 'string'
                     ? [data.tag]
                     : [];
-
         return {
             tags,
             raw: data,
         };
-    } catch (err) {
+    }
+    catch (err) {
         console.error('Error in tagImage:', err);
         throw err instanceof Error ? err : new Error("An unexpected error occurred.");
     }
 }
-
-
