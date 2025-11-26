@@ -25,6 +25,10 @@ export async function describe(image: string, options?: DescribeOptions) {
             body: JSON.stringify({ image: resizedImage }),
         });
 
+        if (response.status === 402) {
+            throw new Error('Insufficient credits');
+        }
+
         if (!response.ok) {
             throw new Error(`Failed to describe image (${response.status})`);
         }
@@ -37,7 +41,6 @@ export async function describe(image: string, options?: DescribeOptions) {
 
         return data.description;
     } catch (err) {
-        console.error('Error in describeImage:', err);
         throw err instanceof Error ? err : new Error("An unexpected error occurred.");
     }
 }

@@ -35,6 +35,10 @@ export async function edit(image: string, options: EditOptions) {
             }),
         });
 
+        if (response.status === 402) {
+            throw new Error('Insufficient credits');
+        }
+
         if (!response.ok) {
             throw new Error(`Failed to edit image (${response.status})`);
         }
@@ -47,7 +51,6 @@ export async function edit(image: string, options: EditOptions) {
 
         return data.result;
     } catch (err) {
-        console.error('Error in editImage:', err);
         throw err instanceof Error ? err : new Error("An unexpected error occurred.");
     }
 }

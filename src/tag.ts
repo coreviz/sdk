@@ -38,6 +38,10 @@ export async function tag(image: string, options: TagOptions): Promise<TagRespon
             }),
         });
 
+        if (response.status === 402) {
+            throw new Error('Insufficient credits');
+        }
+
         if (!response.ok) {
             throw new Error(`Failed to tag image (${response.status})`);
         }
@@ -66,7 +70,6 @@ export async function tag(image: string, options: TagOptions): Promise<TagRespon
             raw: data,
         };
     } catch (err) {
-        console.error('Error in tagImage:', err);
         throw err instanceof Error ? err : new Error("An unexpected error occurred.");
     }
 }
