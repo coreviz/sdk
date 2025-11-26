@@ -26,6 +26,14 @@ export interface TagResponse {
     raw?: unknown;
 }
 
+export interface EmbedOptions {
+    type?: 'image' | 'text';
+}
+
+export interface EmbedResponse {
+    embedding: number[];
+}
+
 export class CoreViz {
     private apiKey?: string;
     private token?: string;
@@ -138,6 +146,41 @@ export class CoreViz {
                 tags,
                 raw: data,
             };
+        } catch (err) {
+            throw err instanceof Error ? err : new Error("An unexpected error occurred.");
+        }
+    }
+
+    async embed(input: string, options?: EmbedOptions): Promise<EmbedResponse> {
+        try {
+            const headers = this.getHeaders();
+            let body: { image?: string; text?: string } = {};
+
+            // Determine type
+            let isImage = false;
+            if (options?.type) {
+                isImage = options.type === 'image';
+            } else {
+                // Heuristic: Check if input starts with data:image or http
+                // Assuming http/https implies image URL in this context unless specified otherwise
+                isImage = input.startsWith('data:image') || input.startsWith('http://') || input.startsWith('https://');
+            }
+
+            if (isImage) {
+                const resizedImage = await resize(input);
+                body.image = resizedImage;
+            } else {
+                body.text = input;
+            }
+
+            const response = await fetch("https://lab.coreviz.io/api/ai/embed", {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(body),
+            });
+
+            const data = await this.handleResponse<EmbedResponse>(response);
+            return data;
         } catch (err) {
             throw err instanceof Error ? err : new Error("An unexpected error occurred.");
         }
