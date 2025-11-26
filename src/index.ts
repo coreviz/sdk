@@ -1,7 +1,5 @@
-import { describe, DescribeOptions } from './describe';
+import { CoreViz, CoreVizConfig, DescribeOptions, EditOptions, TagOptions, TagResponse } from './coreviz';
 import { resize } from './resize';
-import { edit, EditOptions } from './edit';
-import { tag, TagOptions, TagResponse } from './tag';
 
-export { describe, resize, edit, tag };
-export type { EditOptions, TagOptions, TagResponse, DescribeOptions };
+export { CoreViz, resize };
+export type { CoreVizConfig, DescribeOptions, EditOptions, TagOptions, TagResponse };

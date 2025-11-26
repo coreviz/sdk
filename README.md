@@ -10,16 +10,19 @@ npm install @coreviz/sdk
 
 ## Configuration
 
-To use the AI features, you need a CoreViz API key.
-Set the `COREVIZ_API_KEY` environment variable in your project.
+To use the AI features, you need to instantiate the `CoreViz` class with your API key.
 
-```bash
-export COREVIZ_API_KEY=your_api_key_here
+```typescript
+import { CoreViz } from '@coreviz/sdk';
+
+const coreviz = new CoreViz({
+    apiKey: process.env.COREVIZ_API_KEY // or 'your_api_key_here'
+});
 ```
 
 ## API Reference
 
-### `describe(image)`
+### `coreviz.describe(image)`
 
 Generates a detailed text description of an image.
 
@@ -32,13 +35,11 @@ Generates a detailed text description of an image.
 **Example:**
 
 ```typescript
-import { describe } from '@coreviz/sdk';
-
-const description = await describe('https://example.com/image.jpg');
+const description = await coreviz.describe('https://example.com/image.jpg');
 console.log(description);
 ```
 
-### `tag(image, options)`
+### `coreviz.tag(image, options)`
 
 Analyzes an image and returns relevant tags or classifications based on a prompt.
 
@@ -57,9 +58,7 @@ Analyzes an image and returns relevant tags or classifications based on a prompt
 **Example:**
 
 ```typescript
-import { tag } from '@coreviz/sdk';
-
-const result = await tag('base64_image_string...', {
+const result = await coreviz.tag('base64_image_string...', {
   prompt: "Is this indoor or outdoor?",
   options: ["indoor", "outdoor"],
   multiple: false
@@ -67,7 +66,7 @@ const result = await tag('base64_image_string...', {
 console.log(result.tags); // ["indoor"]
 ```
 
-### `edit(image, options)`
+### `coreviz.edit(image, options)`
 
 Modifies an image based on a text prompt using generative AI.
 
@@ -85,17 +84,15 @@ Modifies an image based on a text prompt using generative AI.
 **Example:**
 
 ```typescript
-import { edit } from '@coreviz/sdk';
-
-const editedImage = await edit('https://example.com/photo.jpg', {
+const editedImage = await coreviz.edit('https://example.com/photo.jpg', {
   prompt: "Make it look like a painting",
   aspectRatio: "1:1"
 });
 ```
 
-### `resize(input, maxWidth?, maxHeight?)`
+### `coreviz.resize(input, maxWidth?, maxHeight?)`
 
-Utility function to resize images client-side or server-side before processing.
+Utility function to resize images client-side or server-side before processing. Also available as a standalone import.
 
 **Parameters:**
 - `input` (string | File): The image to resize.
@@ -108,9 +105,8 @@ Utility function to resize images client-side or server-side before processing.
 **Example:**
 
 ```typescript
-import { resize } from '@coreviz/sdk';
-
-const resized = await resize(myFileObject, 800, 600);
+const resized = await coreviz.resize(myFileObject, 800, 600);
+// or import { resize } from '@coreviz/sdk';
 ```
 
 ## License
