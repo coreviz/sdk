@@ -1,6 +1,6 @@
 const isBrowser = typeof window !== 'undefined';
 
-export async function resize(input: string | File, maxWidth = 1920, maxHeight = 1080): Promise<string> {
+export async function resize(input: string | File, maxWidth = 1280, maxHeight = 720): Promise<string> {
     if (isBrowser) {
         return clientResize(input, maxWidth, maxHeight);
     } else {
