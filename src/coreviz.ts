@@ -211,12 +211,16 @@ export class CoreViz {
             const start = Date.now();
 
             // Load tokenizer and processor
-            const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
+            const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID,);
             const processor = await AutoProcessor.from_pretrained(MODEL_ID);
 
             // Load models with device preference
-            const text_model = await CLIPTextModelWithProjection.from_pretrained(MODEL_ID);
-            const vision_model = await CLIPVisionModelWithProjection.from_pretrained(MODEL_ID);
+            const text_model = await CLIPTextModelWithProjection.from_pretrained(MODEL_ID, {
+                dtype: 'q4',
+            });
+            const vision_model = await CLIPVisionModelWithProjection.from_pretrained(MODEL_ID, {
+                dtype: 'q4',
+            });
 
             console.log(`Model loaded in ${Date.now() - start}ms`);
 
