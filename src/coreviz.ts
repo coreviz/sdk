@@ -196,22 +196,89 @@ export class CoreViz {
     private async embedLocal(input: string, options?: EmbedOptions): Promise<EmbedResponse> {
         try {
             // Dynamic import to avoid loading transformers if not used
-            const { pipeline } = await import('@huggingface/transformers');
+            const {
+                AutoTokenizer,
+                AutoProcessor,
+                CLIPTextModelWithProjection,
+                CLIPVisionModelWithProjection,
+                RawImage,
+                env
+            } = await import('@huggingface/transformers');
 
-            // Initialize the pipeline with the specified model
-            // This will automatically download and cache the model if not present
-            const extractor = await pipeline('feature-extraction', 'Xenova/clip-vit-large-patch14');
+            // Force browser backend to use webgpu if available
+            // @ts-ignore
+            if (typeof navigator !== 'undefined' && navigator.gpu && env.backends?.onnx?.wasm) {
+                // @ts-ignore
+                env.backends.onnx.wasm.proxy = false;
+            }
 
-            // Generate embeddings
-            // transformers.js handles text strings, image URLs, and image paths automatically
-            const output = await extractor(input, { pooling: 'mean', normalize: true });
+            const MODEL_ID = 'Xenova/clip-vit-large-patch14';
+            const device = 'webgpu';
+
+            console.log(`Loading local model ${MODEL_ID}...`);
+            const start = Date.now();
+
+            // Load tokenizer and processor
+            const tokenizer = await AutoTokenizer.from_pretrained(MODEL_ID);
+            const processor = await AutoProcessor.from_pretrained(MODEL_ID);
+
+            // Load models with device preference
+            const text_model = await CLIPTextModelWithProjection.from_pretrained(MODEL_ID, {
+                device: device,
+            });
+            const vision_model = await CLIPVisionModelWithProjection.from_pretrained(MODEL_ID, {
+                device: device,
+            });
+
+            console.log(`Model loaded in ${Date.now() - start}ms`);
+
+            // Check if input is likely an image
+            const isImage = options?.type === 'image' ||
+                input.startsWith('data:image') ||
+                input.startsWith('http://') ||
+                input.startsWith('https://') ||
+                /\.(jpg|jpeg|png|webp|gif|bmp|tiff|tif)$/i.test(input);
+
+            let normalized_embeds;
+
+            if (isImage) {
+                let image;
+                if (input.startsWith('http')) {
+                    image = await RawImage.fromURL(input);
+                } else if (input.startsWith('data:image')) {
+                    // Extract base64 data
+                    const base64Data = input.split(',')[1];
+                    const binary = atob(base64Data);
+                    const array = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) {
+                        array[i] = binary.charCodeAt(i);
+                    }
+                    image = await RawImage.fromBlob(new Blob([array]));
+                } else {
+                    // Assume local path
+                    image = await RawImage.read(input);
+                }
+
+                const image_inputs = await processor(image);
+                const { image_embeds } = await vision_model(image_inputs);
+                normalized_embeds = image_embeds.normalize(2, -1);
+            } else {
+                const text_inputs = tokenizer(input, {
+                    padding: true,
+                    truncation: true,
+                    return_tensors: 'pt',
+                });
+                const { text_embeds } = await text_model(text_inputs);
+                normalized_embeds = text_embeds.normalize(2, -1);
+            }
 
             // Convert Float32Array to regular array
-            // @ts-ignore - Output type inference might fail with dynamic import
-            const embedding = Array.from(output.data);
+            // @ts-ignore
+            const embedding = Array.from(normalized_embeds.data) as number[];
 
             return { embedding };
         } catch (err) {
+            console.error(err);
             throw err instanceof Error ? err : new Error("Local embedding failed: " + String(err));
         }
     }
