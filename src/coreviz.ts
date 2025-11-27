@@ -19,6 +19,7 @@ export interface TagOptions {
     prompt: string;
     options?: string[];
     multiple?: boolean;
+    mode?: 'api' | 'local';
 }
 
 export interface TagResponse {
@@ -118,6 +119,12 @@ export class CoreViz {
     }
 
     async tag(image: string, options: TagOptions): Promise<TagResponse> {
+        const mode = options?.mode || 'api';
+
+        if (mode === 'local') {
+            return this.tagLocal(image, options);
+        }
+
         try {
             const resizedImage = await resize(image);
             const headers = this.getHeaders();
@@ -149,6 +156,128 @@ export class CoreViz {
             };
         } catch (err) {
             throw err instanceof Error ? err : new Error("An unexpected error occurred.");
+        }
+    }
+
+    private async tagLocal(imageInput: string, options: TagOptions): Promise<TagResponse> {
+        try {
+            // Dynamic import to avoid loading transformers if not used
+            const {
+                AutoProcessor,
+                AutoModelForImageTextToText,
+                RawImage,
+                env
+            } = await import('@huggingface/transformers');
+
+            // Configure transformers.js for browser usage
+            env.allowRemoteModels = true;
+
+            const processor = await AutoProcessor.from_pretrained('onnx-community/FastVLM-0.5B-ONNX');
+            const model = await AutoModelForImageTextToText.from_pretrained('onnx-community/FastVLM-0.5B-ONNX', {
+                dtype: {
+                    embed_tokens: "fp16",
+                    vision_encoder: "q4",
+                    decoder_model_merged: "q4",
+                },
+            });
+
+            let rawImg;
+            if (imageInput.startsWith('http')) {
+                rawImg = await RawImage.fromURL(imageInput);
+            } else if (imageInput.startsWith('data:image')) {
+                const base64Data = imageInput.split(',')[1];
+                const binary = atob(base64Data);
+                const array = new Uint8Array(binary.length);
+                for (let i = 0; i < binary.length; i++) {
+                    array[i] = binary.charCodeAt(i);
+                }
+                rawImg = await RawImage.fromBlob(new Blob([array]));
+            } else {
+                rawImg = await RawImage.read(imageInput);
+            }
+
+            let systemPrompt = `You are a precise image tagging AI.
+Rules:
+1. Return ONLY a comma-separated list of tags.
+2. DO NOT provide any conversational text, introductions, or explanations.
+3. DO NOT use full sentences.
+4. If options are provided, select strictly from them.
+
+Example 1:
+What animals are in the image?
+Example Output:
+cat
+
+Example 2:
+What color cars are visible in the image?
+Output:
+red, blue, green
+
+Example 3:
+What is the jersey number of the player?
+Output:
+10
+`;
+            let userPrompt = `${options.prompt}`;
+
+            if (options.options && options.options.length > 0) {
+                userPrompt += `\nSelect from these options: ${options.options.join(', ')}.`;
+            }
+            if (!options.multiple) {
+                userPrompt += `\nReturn a single tag.`;
+            }
+
+            const messages = [
+                {
+                    role: 'system',
+                    content: systemPrompt,
+                },
+                { role: 'user', content: `<image>\n${userPrompt}` },
+            ];
+
+            let promptText = processor.apply_chat_template(messages, {
+                add_generation_prompt: true,
+            });
+
+            if (typeof promptText === 'string') {
+                promptText += options.multiple ? "Tags: " : "Tag: ";
+            }
+
+            const inputs = await processor(rawImg, promptText, {
+                add_special_tokens: false,
+            });
+
+            const outputs = await model.generate({
+                ...inputs,
+                max_new_tokens: 120,
+                do_sample: false,
+                repetition_penalty: 1.2,
+            }) as any;
+
+            const decoded = processor.batch_decode(
+                outputs.slice(null, [inputs.input_ids.dims.at(-1), null]),
+                { skip_special_tokens: true }
+            );
+
+            let resultText = decoded[0].trim();
+            // Cleanup potential repetition of priming token
+            resultText = resultText.replace(/^(Tags?:\s*)/i, '');
+
+            let tags: string[] = [];
+            if (options.multiple) {
+                tags = resultText.split(',').map(s => s.trim()).filter(s => s.length > 0);
+            } else {
+                tags = [resultText];
+            }
+
+            return {
+                tags,
+                raw: { result: resultText }
+            };
+
+        } catch (err) {
+            console.error(err);
+            throw err instanceof Error ? err : new Error("Local tagging failed: " + String(err));
         }
     }
 
@@ -274,5 +403,24 @@ export class CoreViz {
 
     async resize(input: string | File, maxWidth?: number, maxHeight?: number): Promise<string> {
         return resize(input, maxWidth, maxHeight);
+    }
+
+
+    similarity(vecA: number[], vecB: number[]): number {
+        if (vecA.length !== vecB.length) return 0;
+
+        let dotProduct = 0;
+        let normA = 0;
+        let normB = 0;
+
+        for (let i = 0; i < vecA.length; i++) {
+            dotProduct += vecA[i] * vecB[i];
+            normA += vecA[i] * vecA[i];
+            normB += vecB[i] * vecB[i];
+        }
+
+        if (normA === 0 || normB === 0) return 0;
+
+        return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 }
