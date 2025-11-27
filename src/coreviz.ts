@@ -78,7 +78,7 @@ export class CoreViz {
 
     async describe(image: string, options?: DescribeOptions): Promise<string> {
         try {
-            const resizedImage = await resize(image);
+            const resizedImage = await resize(image, 512, 512);
             const headers = this.getHeaders();
 
             const response = await fetch(`https://lab.coreviz.io/api/ai/describe`, {
@@ -96,7 +96,7 @@ export class CoreViz {
 
     async edit(image: string, options: EditOptions): Promise<string> {
         try {
-            const resizedImage = await resize(image);
+            const resizedImage = await resize(image, 1024, 1024);
             const headers = this.getHeaders();
 
             const response = await fetch(`https://lab.coreviz.io/api/ai/edit`, {
@@ -126,7 +126,7 @@ export class CoreViz {
         }
 
         try {
-            const resizedImage = await resize(image);
+            const resizedImage = await resize(image, 512, 512);
             const headers = this.getHeaders();
 
             const response = await fetch("https://lab.coreviz.io/api/ai/tag", {
@@ -303,7 +303,7 @@ Output:
             }
 
             if (isImage) {
-                const resizedImage = await resize(input);
+                const resizedImage = await resize(input, 512, 512);
                 body.image = resizedImage;
             } else {
                 body.text = input;
