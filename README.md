@@ -2,6 +2,21 @@
 
 Easily integrate powerful image analysis and manipulation features into your applications with CoreViz (https://coreviz.io/) 's Vision SDK.
 
+## Introduction
+
+[![CoreViz Demo Screenshot](./demo/demo.gif)](https://coreviz.io/)
+
+The CoreViz SDK powers the [coreviz.io](https://coreviz.io/) platform and the [CoreViz CLI](https://github.com/coreviz/cli), providing fast, consistent AI image analysis and manipulation capabilities across environments.
+
+You can try out the live demos and tools built with this SDK at [coreviz.io/tools](https://coreviz.io/tools), including:
+
+- **Image Description**: Generate detailed captions for any image. [→ Demo](https://coreviz.io/tools/describe)
+- **Tagging / Classification**: Classify images with custom or general prompts. [→ Demo](https://coreviz.io/tools/tag)
+- **Image Editing**: Modify or retouch images using generative AI based on text instructions. [→ Demo](https://coreviz.io/tools/edit)
+
+Check out [coreviz.io/tools](https://coreviz.io/tools) to explore these features interactively.
+
+
 ## Installation
 
 ```bash
@@ -19,18 +34,6 @@ const coreviz = new CoreViz({
     apiKey: process.env.COREVIZ_API_KEY // or 'your_api_key_here'
 });
 ```
-
-## Demos
-
-The CoreViz SDK powers both the [coreviz.io](https://coreviz.io/) platform and the [CoreViz CLI](https://github.com/coreviz/cli), providing fast, consistent AI image analysis and manipulation capabilities across environments.
-
-You can try out the live demos and tools built with this SDK at [coreviz.io/tools](https://coreviz.io/tools), including:
-
-- **Image Description**: Generate detailed captions for any image. ![Demo](https://coreviz.io/tools/describe)
-- **Tagging / Classification**: Classify images with custom or general prompts. ![Demo](https://coreviz.io/tools/tag)
-- **Image Editing**: Modify or retouch images using generative AI based on text instructions.  ![Demo](https://coreviz.io/tools/edit)
-
-Check out [coreviz.io/tools](https://coreviz.io/tools) to explore these features interactively.
 
 ## API Reference
 
@@ -157,7 +160,3 @@ Utility function to resize images client-side or server-side before processing. 
 const resized = await coreviz.resize(myFileObject, 800, 600);
 // or import { resize } from '@coreviz/sdk';
 ```
-
-## License
-
-MIT
