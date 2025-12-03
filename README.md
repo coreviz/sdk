@@ -133,6 +133,30 @@ const editedImage = await coreviz.edit('https://example.com/photo.jpg', {
 });
 ```
 
+### `coreviz.batchGenerate(prompt, options)`
+
+Generates multiple images based on a text prompt, optionally using reference images for style/structure guidance.
+
+**Parameters:**
+- `prompt` (string): The text description of the image(s) to generate.
+- `options` (object, optional):
+  - `referenceImages` (string[], optional): Array of reference images (URL/base64) to guide generation.
+  - `count` (number, optional): Number of images to generate (default: 1).
+  - `aspectRatio` (string, optional): Target aspect ratio (e.g., `'1:1'`, `'16:9'`, `'4:3'`).
+  - `model` (string, optional): The model to use (default: `'google/nano-banana-pro'`).
+
+**Returns:**
+- `Promise<string[]>`: An array of generated images as URLs.
+
+**Example:**
+
+```typescript
+const images = await coreviz.batchGenerate("A futuristic city skyline", {
+  count: 4,
+  aspectRatio: "16:9"
+});
+```
+
 ### `coreviz.embed(input, options?)`
 
 Generates embeddings for image or text inputs, enabling semantic search and similarity comparison. Use with `coreviz.similarity(embeddingA, embeddingB)` to compare two images or an image and a text.
