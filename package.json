@@ -1,6 +1,6 @@
 {
   "name": "@coreviz/sdk",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "CoreViz SDK",
   "main": "dist/index.js",
   "react-native": "dist/index.native.js",
