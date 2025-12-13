@@ -82,6 +82,7 @@ async function serverResize(inputStr: string, maxWidth: number, maxHeight: numbe
 
     try {
         // Dynamic import to prevent bundling sharp on the client
+        // Note: `sharp` is an optional dependency (for RN/Expo compatibility). If missing, we gracefully fall back.
         const sharpModule = await import('sharp');
         const sharp = sharpModule.default;
 
@@ -132,7 +133,10 @@ async function serverResize(inputStr: string, maxWidth: number, maxHeight: numbe
 
         return inputStr;
     } catch (error) {
-        console.warn("Failed to resize image on server:", error);
+        console.warn(
+            "Failed to resize image on server. If you need server-side resizing, ensure `sharp` is installed. Falling back to original image.",
+            error
+        );
         return inputStr; // Fallback to original
     }
 }

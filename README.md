@@ -51,6 +51,17 @@ Check out [coreviz.io/tools](https://coreviz.io/tools) to explore these features
 npm install @coreviz/sdk
 ```
 
+### React Native / Expo
+
+When using this SDK in Expo / React Native, install the Expo image utilities (used for `resize`):
+
+```bash
+npx expo install expo-image-manipulator expo-file-system
+```
+
+Notes:
+- **Local mode** (`mode: 'local'`) for `tag()` / `embed()` is **not supported** on React Native / Expo.
+
 ## Configuration
 
 To use the AI features, you need to instantiate the `CoreViz` class with your API key.
