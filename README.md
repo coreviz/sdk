@@ -144,26 +144,24 @@ const editedImage = await coreviz.edit('https://example.com/photo.jpg', {
 });
 ```
 
-### `coreviz.batchGenerate(prompt, options)`
+### `coreviz.generate(prompt, options)`
 
-Generates multiple images based on a text prompt, optionally using reference images for style/structure guidance.
+Generates an image based on a text prompt, optionally using reference images for style/structure guidance.
 
 **Parameters:**
 - `prompt` (string): The text description of the image(s) to generate.
 - `options` (object, optional):
   - `referenceImages` (string[], optional): Array of reference images (URL/base64) to guide generation.
-  - `count` (number, optional): Number of images to generate (default: 1).
   - `aspectRatio` (string, optional): Target aspect ratio (e.g., `'1:1'`, `'16:9'`, `'4:3'`).
   - `model` (string, optional): The model to use (default: `'google/nano-banana-pro'`).
 
 **Returns:**
-- `Promise<string[]>`: An array of generated images as URLs.
+- `string`: The generated images as a URL.
 
 **Example:**
 
 ```typescript
-const images = await coreviz.batchGenerate("A futuristic city skyline", {
-  count: 4,
+const images = await coreviz.generate("A futuristic city skyline", {
   aspectRatio: "16:9"
 });
 ```

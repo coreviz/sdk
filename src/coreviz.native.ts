@@ -5,7 +5,7 @@ export interface CoreVizConfig {
   token?: string;
 }
 
-export interface DescribeOptions {}
+export interface DescribeOptions { }
 
 export interface EditOptions {
   prompt: string;
@@ -35,11 +35,10 @@ export interface EmbedResponse {
   embedding: number[];
 }
 
-export interface BatchGenerateOptions {
+export interface GenerateOptions {
   referenceImages?: string[];
-  count?: number;
   aspectRatio?: '1:1' | '2:3' | '3:2' | '3:4' | '4:3' | '4:5' | '5:4' | '9:16' | '16:9' | '21:9';
-  model?: 'google/nano-banana' | 'google/nano-banana-pro';
+  model?: 'google/nano-banana' | 'google/nano-banana-pro' | 'seedream-4' | 'flux-kontext-max';
 }
 
 export class CoreViz {
@@ -117,7 +116,7 @@ export class CoreViz {
     return data.result;
   }
 
-  async batchGenerate(prompt: string, options: BatchGenerateOptions = {}): Promise<string[]> {
+  async generate(prompt: string, options: GenerateOptions = {}): Promise<string> {
     const headers = this.getHeaders();
 
     let resizedImages: string[] = [];
@@ -125,20 +124,19 @@ export class CoreViz {
       resizedImages = await Promise.all(options.referenceImages.map((img) => resize(img, 1024, 1024)));
     }
 
-    const response = await fetch(`https://lab.coreviz.io/api/ai/batch-generate`, {
+    const response = await fetch(`https://lab.coreviz.io/api/ai/generate`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
         prompt,
         image: resizedImages.length > 0 ? resizedImages : undefined,
-        count: options.count || 1,
         aspectRatio: options.aspectRatio,
         model: options.model || 'google/nano-banana-pro',
       }),
     });
 
-    const data = await this.handleResponse<{ results: string[] }>(response);
-    return data.results || [];
+    const data = await this.handleResponse<{ result: string }>(response);
+    return data.result;
   }
 
   async tag(image: string, options: TagOptions): Promise<TagResponse> {
@@ -234,5 +232,7 @@ export class CoreViz {
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
   }
 }
+
+
 
 
