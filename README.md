@@ -226,7 +226,7 @@ const resized = await coreviz.resize(myFileObject, 800, 600);
 
 ## Library Management API
 
-The SDK also exposes namespaced methods for programmatically managing your CoreViz visual library — browsing datasets, searching media, organizing folders, and managing tags. These require authentication via a user token (from `coreviz login`) or an API key.
+The SDK also exposes namespaced methods for programmatically managing your CoreViz visual library — browsing collections, searching media, organizing folders, and managing tags. These require authentication via a user token (from `coreviz login`) or an API key.
 
 ```typescript
 const coreviz = new CoreViz({ token: 'your_session_token' });
@@ -234,27 +234,43 @@ const coreviz = new CoreViz({ token: 'your_session_token' });
 // or: new CoreViz({ token, baseUrl: 'http://localhost:3000' }) // for local dev
 ```
 
-### `coreviz.datasets.list()`
+### `coreviz.collections.list()`
 
 List all collections in the user's current organization.
 
-**Returns:** `Promise<Dataset[]>`
+**Returns:** `Promise<Collection[]>`
 
 ```typescript
-const datasets = await coreviz.datasets.list();
+const collections = await coreviz.collections.list();
 // [{ id, name, icon, type, organizationId }, ...]
 ```
 
 ---
 
-### `coreviz.media.browse(datasetId, options?)`
+### `coreviz.collections.create(name, icon?)`
 
-List media items and folders inside a dataset. Navigates the ltree folder hierarchy.
+Create a new collection in the user's current organization.
 
 **Parameters:**
-- `datasetId` (string): The dataset to browse.
+- `name` (string): Collection name.
+- `icon` (string, optional): Emoji or icon name.
+
+**Returns:** `Promise<Collection>`
+
+```typescript
+const collection = await coreviz.collections.create('Product Photos', '📦');
+```
+
+---
+
+### `coreviz.media.browse(collectionId, options?)`
+
+List media items and folders inside a collection. Navigates the ltree folder hierarchy.
+
+**Parameters:**
+- `collectionId` (string): The collection to browse.
 - `options` (object, optional):
-  - `path` (string): ltree path to list (e.g. `"datasetId.folderId"`). Defaults to dataset root.
+  - `path` (string): ltree path to list (e.g. `"collectionId.folderId"`). Defaults to collection root.
   - `limit` / `offset` (number): Pagination.
   - `type` (`'image' | 'video' | 'folder' | 'all'`): Filter by type.
   - `dateFrom` / `dateTo` (string): Filter by creation date (`YYYY-MM-DD`).
@@ -312,15 +328,15 @@ await coreviz.media.rename('mediaId123', 'hero-shot-final.jpg');
 
 ### `coreviz.media.move(mediaId, destinationPath)`
 
-Move a media item or folder to a different location within the same dataset.
+Move a media item or folder to a different location within the same collection.
 
 **Parameters:**
-- `destinationPath` (string): ltree path of the destination folder (e.g. `"datasetId.targetFolder"`).
+- `destinationPath` (string): ltree path of the destination folder (e.g. `"collectionId.targetFolder"`).
 
 **Returns:** `Promise<{ id, newPath }>`
 
 ```typescript
-await coreviz.media.move('mediaId123', 'datasetId.archiveFolder');
+await coreviz.media.move('mediaId123', 'collectionId.archiveFolder');
 ```
 
 ---
@@ -336,42 +352,43 @@ await coreviz.media.removeTag('mediaId123', 'color', 'red');
 
 ---
 
-### `coreviz.media.findSimilar(datasetId, objectId, options?)`
+### `coreviz.media.findSimilar(collectionId, objectId, options?)`
 
 Find visually similar media using a detected object ID (from `media.get()` frames).
 
 **Parameters:**
+- `collectionId` (string): The collection to search within.
 - `objectId` (string): ID of a detected object to use as the similarity query.
 - `options.model` (string): `'faces'`, `'objects'`, or `'shoeprints'`.
 
 **Returns:** `Promise<BrowseResult>`
 
 ```typescript
-const similar = await coreviz.media.findSimilar('datasetId', 'objectId456', { model: 'faces' });
+const similar = await coreviz.media.findSimilar('collectionId', 'objectId456', { model: 'faces' });
 ```
 
 ---
 
-### `coreviz.folders.create(datasetId, name, path?)`
+### `coreviz.folders.create(collectionId, name, path?)`
 
-Create a new folder inside a dataset.
+Create a new folder inside a collection.
 
 **Returns:** `Promise<Folder>`
 
 ```typescript
-const folder = await coreviz.folders.create('datasetId', 'Spring 2025', 'datasetId.campaigns');
+const folder = await coreviz.folders.create('collectionId', 'Spring 2025', 'collectionId.campaigns');
 ```
 
 ---
 
-### `coreviz.tags.list(datasetId)`
+### `coreviz.tags.list(collectionId)`
 
-Aggregate all tag groups and values across an entire dataset.
+Aggregate all tag groups and values across an entire collection.
 
 **Returns:** `Promise<Record<string, string[]>>`
 
 ```typescript
-const tags = await coreviz.tags.list('datasetId');
+const tags = await coreviz.tags.list('collectionId');
 // { color: ['red', 'blue'], category: ['product', 'lifestyle'] }
 ```
 
@@ -384,8 +401,8 @@ Upload a photo or video to CoreViz.
 **Parameters:**
 - `file`: Local file path string (Node.js), `File` object (browser), or `Blob`
 - `options`:
-  - `datasetId` (string, required): Target dataset
-  - `path` (string, optional): ltree folder path (e.g. `"datasetId.folderId"`). Defaults to dataset root.
+  - `collectionId` (string, required): Target collection
+  - `path` (string, optional): ltree folder path (e.g. `"collectionId.folderId"`). Defaults to collection root.
   - `name` (string, optional): Override the file name stored in CoreViz
 
 **Returns:** `Promise<UploadResult>` — `{ mediaId, url, message }`
@@ -395,7 +412,7 @@ Upload a photo or video to CoreViz.
 ```typescript
 // Node.js — local file path
 const result = await coreviz.media.upload('/path/to/photo.jpg', {
-  datasetId: 'abc123',
+  collectionId: 'abc123',
   path: 'abc123.campaignFolder',
   name: 'hero-shot.jpg',
 });
@@ -403,7 +420,7 @@ console.log(result.mediaId, result.url);
 
 // Browser — File object
 const result = await coreviz.media.upload(fileInputEvent.target.files[0], {
-  datasetId: 'abc123',
+  collectionId: 'abc123',
 });
 ```
 

@@ -17,7 +17,7 @@ export interface UserContext {
     organizationName: string | null;
 }
 
-export interface Dataset {
+export interface Collection {
     id: string;
     name: string;
     icon?: string;
@@ -57,7 +57,7 @@ export interface Folder {
     id: string;
     name: string;
     path: string;
-    datasetId: string;
+    collectionId: string;
 }
 
 export interface BrowseOptions {
@@ -97,9 +97,9 @@ export interface SimilarityOptions {
 }
 
 export interface UploadOptions {
-    /** Target dataset ID */
-    datasetId: string;
-    /** ltree folder path to upload into (e.g. "datasetId.folderId"). Defaults to dataset root. */
+    /** Target collection ID */
+    collectionId: string;
+    /** ltree folder path to upload into (e.g. "collectionId.folderId"). Defaults to collection root. */
     path?: string;
     /** Override the file name stored in CoreViz */
     name?: string;
@@ -113,14 +113,16 @@ export interface UploadResult {
 
 // ── Namespace interfaces ─────────────────────────────────────────────────────
 
-export interface DatasetsNamespace {
-    /** List all datasets in the user's current organization */
-    list(): Promise<Dataset[]>;
+export interface CollectionsNamespace {
+    /** List all collections in the user's current organization */
+    list(): Promise<Collection[]>;
+    /** Create a new collection in the user's current organization */
+    create(name: string, icon?: string): Promise<Collection>;
 }
 
 export interface MediaNamespace {
-    /** Browse/list media items in a dataset folder */
-    browse(datasetId: string, options?: BrowseOptions): Promise<BrowseResult>;
+    /** Browse/list media items in a collection folder */
+    browse(collectionId: string, options?: BrowseOptions): Promise<BrowseResult>;
     /** Semantic search across all org media */
     search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
     /** Get full details for a media item */
@@ -134,7 +136,7 @@ export interface MediaNamespace {
     /** Remove a tag group+value from a media item */
     removeTag(mediaId: string, label: string, value: string): Promise<void>;
     /** Find visually similar media using an object ID */
-    findSimilar(datasetId: string, objectId: string, options?: SimilarityOptions): Promise<BrowseResult>;
+    findSimilar(collectionId: string, objectId: string, options?: SimilarityOptions): Promise<BrowseResult>;
     /**
      * Upload a photo or video to CoreViz.
      * - Node.js: pass a local file path string
@@ -144,13 +146,13 @@ export interface MediaNamespace {
 }
 
 export interface FoldersNamespace {
-    /** Create a folder inside a dataset */
-    create(datasetId: string, name: string, path?: string): Promise<Folder>;
+    /** Create a folder inside a collection */
+    create(collectionId: string, name: string, path?: string): Promise<Folder>;
 }
 
 export interface TagsNamespace {
-    /** Aggregate all tag groups + values across a dataset */
-    list(datasetId: string): Promise<Record<string, string[]>>;
+    /** Aggregate all tag groups + values across a collection */
+    list(collectionId: string): Promise<Record<string, string[]>>;
 }
 
 export interface DescribeOptions {
@@ -196,7 +198,7 @@ export class CoreViz {
     private _baseUrl: string;
     private _orgIdCache: string | null = null;
 
-    public datasets: DatasetsNamespace;
+    public collections: CollectionsNamespace;
     public media: MediaNamespace;
     public folders: FoldersNamespace;
     public tags: TagsNamespace;
@@ -208,16 +210,25 @@ export class CoreViz {
 
         // ── Management namespaces ────────────────────────────────────────────
 
-        this.datasets = {
-            list: async (): Promise<Dataset[]> => {
+        this.collections = {
+            list: async (): Promise<Collection[]> => {
                 const { organizationId } = await this._me();
-                const data = await this._fetch<Dataset[]>(`/api/organization/${organizationId}/datasets`);
+                const data = await this._fetch<Collection[]>(`/api/organization/${organizationId}/datasets`);
                 return Array.isArray(data) ? data : (data as any).datasets ?? [];
+            },
+
+            create: async (name: string, icon?: string): Promise<Collection> => {
+                const { organizationId } = await this._me();
+                const data = await this._fetchMethod<{ dataset: Collection }>('POST', `/api/organization/${organizationId}/datasets`, {
+                    name,
+                    ...(icon ? { icon } : {}),
+                });
+                return data.dataset;
             },
         };
 
         this.media = {
-            browse: async (datasetId: string, options: BrowseOptions = {}): Promise<BrowseResult> => {
+            browse: async (collectionId: string, options: BrowseOptions = {}): Promise<BrowseResult> => {
                 const params = new URLSearchParams();
                 if (options.path) params.set('path', options.path);
                 if (options.limit != null) params.set('limit', String(options.limit));
@@ -229,7 +240,7 @@ export class CoreViz {
                 if (options.sortDirection) params.set('sortDirection', options.sortDirection);
                 if (options.tagFilters) params.set('tagFilters', JSON.stringify(options.tagFilters));
                 const qs = params.toString();
-                return this._fetch<BrowseResult>(`/api/dataset/${datasetId}/media${qs ? `?${qs}` : ''}`);
+                return this._fetch<BrowseResult>(`/api/dataset/${collectionId}/media${qs ? `?${qs}` : ''}`);
             },
 
             search: async (query: string, options: SearchOptions = {}): Promise<SearchResult[]> => {
@@ -270,16 +281,16 @@ export class CoreViz {
                 await this._fetchMethod('DELETE', `/api/media/${mediaId}/tags`, { label, value });
             },
 
-            findSimilar: async (datasetId: string, objectId: string, options: SimilarityOptions = {}): Promise<BrowseResult> => {
+            findSimilar: async (collectionId: string, objectId: string, options: SimilarityOptions = {}): Promise<BrowseResult> => {
                 const params = new URLSearchParams({ similarToObjectId: objectId });
                 if (options.limit != null) params.set('limit', String(options.limit));
                 if (options.model) params.set('similarToObjectModel', options.model);
-                return this._fetch<BrowseResult>(`/api/dataset/${datasetId}/media?${params.toString()}`);
+                return this._fetch<BrowseResult>(`/api/dataset/${collectionId}/media?${params.toString()}`);
             },
 
             upload: async (file: string | File | Blob, options: UploadOptions): Promise<UploadResult> => {
                 const formData = new FormData();
-                formData.append('datasetId', options.datasetId);
+                formData.append('datasetId', options.collectionId);
                 if (options.path) formData.append('path', options.path);
 
                 if (typeof file === 'string') {
@@ -323,9 +334,9 @@ export class CoreViz {
         };
 
         this.folders = {
-            create: async (datasetId: string, name: string, path?: string): Promise<Folder> => {
+            create: async (collectionId: string, name: string, path?: string): Promise<Folder> => {
                 const data = await this._fetchMethod<{ folder: Folder }>('POST', '/api/folder', {
-                    datasetId,
+                    datasetId: collectionId,
                     name,
                     ...(path ? { path } : {}),
                 });
@@ -334,8 +345,8 @@ export class CoreViz {
         };
 
         this.tags = {
-            list: async (datasetId: string): Promise<Record<string, string[]>> => {
-                const data = await this._fetch<{ tags: Record<string, string[]> }>(`/api/dataset/${datasetId}/tags`);
+            list: async (collectionId: string): Promise<Record<string, string[]>> => {
+                const data = await this._fetch<{ tags: Record<string, string[]> }>(`/api/dataset/${collectionId}/tags`);
                 return data.tags;
             },
         };
