@@ -3,6 +3,156 @@ import { resize } from './resize';
 export interface CoreVizConfig {
     apiKey?: string;
     token?: string;
+    /** Override the API base URL (default: https://lab.coreviz.io) */
+    baseUrl?: string;
+}
+
+// ── Management types ────────────────────────────────────────────────────────
+
+export interface UserContext {
+    userId: string;
+    email: string;
+    name: string;
+    organizationId: string;
+    organizationName: string | null;
+}
+
+export interface Collection {
+    id: string;
+    name: string;
+    icon?: string;
+    type: string;
+    organizationId: string;
+}
+
+export interface MediaObject {
+    id: string;
+    type: string;
+    label: string;
+}
+
+export interface MediaFrame {
+    id: string;
+    timestamp: number;
+    blob: string;
+    objects: MediaObject[];
+}
+
+export interface Media {
+    id: string;
+    name: string;
+    type: 'image' | 'video' | 'folder';
+    blob: string | null;
+    path: string;
+    width?: number;
+    height?: number;
+    sizeBytes?: number;
+    metadata?: Record<string, unknown>;
+    frames?: MediaFrame[];
+    createdAt?: string;
+    _score?: number;
+}
+
+export interface Folder {
+    id: string;
+    name: string;
+    path: string;
+    collectionId: string;
+}
+
+export interface BrowseOptions {
+    path?: string;
+    limit?: number;
+    offset?: number;
+    type?: 'image' | 'video' | 'folder' | 'all';
+    dateFrom?: string;
+    dateTo?: string;
+    sortBy?: string;
+    sortDirection?: 'asc' | 'desc';
+    tagFilters?: Record<string, string[]>;
+}
+
+export interface BrowseResult {
+    media: Media[];
+    pagination: { total: number; limit: number; offset: number; hasMore: boolean };
+}
+
+export interface SearchResult {
+    mediaId: string;
+    mediaName: string;
+    mediaType: string;
+    blobUrl: string;
+    objects: MediaObject[];
+    rank: number;
+    caption?: string;
+}
+
+export interface SearchOptions {
+    limit?: number;
+}
+
+export interface SimilarityOptions {
+    limit?: number;
+    model?: string;
+}
+
+export interface UploadOptions {
+    /** Target collection ID */
+    collectionId: string;
+    /** ltree folder path to upload into (e.g. "collectionId.folderId"). Defaults to collection root. */
+    path?: string;
+    /** Override the file name stored in CoreViz */
+    name?: string;
+}
+
+export interface UploadResult {
+    mediaId: string;
+    url: string;
+    message: string;
+}
+
+// ── Namespace interfaces ─────────────────────────────────────────────────────
+
+export interface CollectionsNamespace {
+    /** List all collections in the user's current organization */
+    list(): Promise<Collection[]>;
+    /** Create a new collection in the user's current organization */
+    create(name: string, icon?: string): Promise<Collection>;
+}
+
+export interface MediaNamespace {
+    /** Browse/list media items in a collection folder */
+    browse(collectionId: string, options?: BrowseOptions): Promise<BrowseResult>;
+    /** Semantic search across all org media */
+    search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
+    /** Get full details for a media item */
+    get(mediaId: string): Promise<Media>;
+    /** Rename a media item */
+    rename(mediaId: string, name: string): Promise<Media>;
+    /** Move a media item to a new ltree destination path */
+    move(mediaId: string, destinationPath: string): Promise<{ id: string; newPath: string }>;
+    /** Add a tag group+value to a media item */
+    addTag(mediaId: string, label: string, value: string): Promise<void>;
+    /** Remove a tag group+value from a media item */
+    removeTag(mediaId: string, label: string, value: string): Promise<void>;
+    /** Find visually similar media using an object ID */
+    findSimilar(collectionId: string, objectId: string, options?: SimilarityOptions): Promise<BrowseResult>;
+    /**
+     * Upload a photo or video to CoreViz.
+     * - Node.js: pass a local file path string
+     * - Browser: pass a File or Blob object
+     */
+    upload(file: string | File | Blob, options: UploadOptions): Promise<UploadResult>;
+}
+
+export interface FoldersNamespace {
+    /** Create a folder inside a collection */
+    create(collectionId: string, name: string, path?: string): Promise<Folder>;
+}
+
+export interface TagsNamespace {
+    /** Aggregate all tag groups + values across a collection */
+    list(collectionId: string): Promise<Record<string, string[]>>;
 }
 
 export interface DescribeOptions {
@@ -45,11 +195,164 @@ export interface GenerateOptions {
 export class CoreViz {
     private apiKey?: string;
     private token?: string;
+    private _baseUrl: string;
+    private _orgIdCache: string | null = null;
+
+    public collections: CollectionsNamespace;
+    public media: MediaNamespace;
+    public folders: FoldersNamespace;
+    public tags: TagsNamespace;
 
     constructor(config: CoreVizConfig = {}) {
         this.apiKey = config.apiKey || (typeof process !== 'undefined' ? process.env.COREVIZ_API_KEY : undefined);
         this.token = config.token;
+        this._baseUrl = config.baseUrl || 'https://lab.coreviz.io';
+
+        // ── Management namespaces ────────────────────────────────────────────
+
+        this.collections = {
+            list: async (): Promise<Collection[]> => {
+                const { organizationId } = await this._me();
+                const data = await this._fetch<Collection[]>(`/api/organization/${organizationId}/datasets`);
+                return Array.isArray(data) ? data : (data as any).datasets ?? [];
+            },
+
+            create: async (name: string, icon?: string): Promise<Collection> => {
+                const { organizationId } = await this._me();
+                const data = await this._fetchMethod<{ dataset: Collection }>('POST', `/api/organization/${organizationId}/datasets`, {
+                    name,
+                    ...(icon ? { icon } : {}),
+                });
+                return data.dataset;
+            },
+        };
+
+        this.media = {
+            browse: async (collectionId: string, options: BrowseOptions = {}): Promise<BrowseResult> => {
+                const params = new URLSearchParams();
+                if (options.path) params.set('path', options.path);
+                if (options.limit != null) params.set('limit', String(options.limit));
+                if (options.offset != null) params.set('offset', String(options.offset));
+                if (options.type) params.set('type', options.type);
+                if (options.dateFrom) params.set('dateFrom', options.dateFrom);
+                if (options.dateTo) params.set('dateTo', options.dateTo);
+                if (options.sortBy) params.set('sortBy', options.sortBy);
+                if (options.sortDirection) params.set('sortDirection', options.sortDirection);
+                if (options.tagFilters) params.set('tagFilters', JSON.stringify(options.tagFilters));
+                const qs = params.toString();
+                return this._fetch<BrowseResult>(`/api/dataset/${collectionId}/media${qs ? `?${qs}` : ''}`);
+            },
+
+            search: async (query: string, options: SearchOptions = {}): Promise<SearchResult[]> => {
+                const { organizationId } = await this._me();
+                const params = new URLSearchParams({ q: query, organizationId });
+                if (options.limit != null) params.set('limit', String(options.limit));
+                const data = await this._fetch<{ results: any[] }>(`/api/search?${params.toString()}`);
+                return (data.results || []).map((r: any) => ({
+                    mediaId: r.media?.id,
+                    mediaName: r.media?.name,
+                    mediaType: r.media?.type,
+                    blobUrl: r.blob,
+                    objects: (r.objects || []).map((o: any) => ({ id: o.id, type: o.type, label: o.label })),
+                    rank: r.rank,
+                    caption: r.captions?.[0]?.text,
+                }));
+            },
+
+            get: async (mediaId: string): Promise<Media> => {
+                const data = await this._fetch<{ media: Media }>(`/api/media/${mediaId}`);
+                return data.media;
+            },
+
+            rename: async (mediaId: string, name: string): Promise<Media> => {
+                const data = await this._fetchMethod<{ media: Media }>('PATCH', `/api/media/${mediaId}`, { name });
+                return data.media;
+            },
+
+            move: async (mediaId: string, destinationPath: string): Promise<{ id: string; newPath: string }> => {
+                return this._fetchMethod('PATCH', `/api/media/${mediaId}/move`, { destinationPath });
+            },
+
+            addTag: async (mediaId: string, label: string, value: string): Promise<void> => {
+                await this._fetchMethod('POST', `/api/media/${mediaId}/tags`, { label, value });
+            },
+
+            removeTag: async (mediaId: string, label: string, value: string): Promise<void> => {
+                await this._fetchMethod('DELETE', `/api/media/${mediaId}/tags`, { label, value });
+            },
+
+            findSimilar: async (collectionId: string, objectId: string, options: SimilarityOptions = {}): Promise<BrowseResult> => {
+                const params = new URLSearchParams({ similarToObjectId: objectId });
+                if (options.limit != null) params.set('limit', String(options.limit));
+                if (options.model) params.set('similarToObjectModel', options.model);
+                return this._fetch<BrowseResult>(`/api/dataset/${collectionId}/media?${params.toString()}`);
+            },
+
+            upload: async (file: string | File | Blob, options: UploadOptions): Promise<UploadResult> => {
+                const formData = new FormData();
+                formData.append('datasetId', options.collectionId);
+                if (options.path) formData.append('path', options.path);
+
+                if (typeof file === 'string') {
+                    // Node.js: treat as a file path — dynamic import fs to stay browser-compatible
+                    const fs = await import('fs');
+                    const path = await import('path');
+                    const buffer = fs.readFileSync(file);
+                    const ext = path.extname(file).slice(1).toLowerCase();
+                    const mimeTypes: Record<string, string> = {
+                        jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+                        gif: 'image/gif', webp: 'image/webp', heic: 'image/heic',
+                        mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+                    };
+                    const contentType = mimeTypes[ext] || 'application/octet-stream';
+                    const fileName = options.name || path.basename(file);
+                    const blob = new Blob([buffer], { type: contentType });
+                    formData.append('file', blob, fileName);
+                    if (!options.name) formData.append('name', fileName);
+                } else {
+                    const fileName = options.name || (file instanceof File ? file.name : 'upload');
+                    formData.append('file', file, fileName);
+                    if (options.name) formData.append('name', options.name);
+                }
+
+                // Build headers without Content-Type (let fetch set the multipart boundary)
+                const authHeaders: Record<string, string> = {};
+                if (this.token) {
+                    authHeaders['Authorization'] = `Bearer ${this.token}`;
+                } else {
+                    authHeaders['x-api-key'] = this.apiKey || '';
+                }
+
+                const response = await fetch(`${this._baseUrl}/api/upload/multipart`, {
+                    method: 'POST',
+                    headers: authHeaders,
+                    body: formData,
+                });
+
+                return this.handleResponse<UploadResult>(response);
+            },
+        };
+
+        this.folders = {
+            create: async (collectionId: string, name: string, path?: string): Promise<Folder> => {
+                const data = await this._fetchMethod<{ folder: Folder }>('POST', '/api/folder', {
+                    datasetId: collectionId,
+                    name,
+                    ...(path ? { path } : {}),
+                });
+                return data.folder;
+            },
+        };
+
+        this.tags = {
+            list: async (collectionId: string): Promise<Record<string, string[]>> => {
+                const data = await this._fetch<{ tags: Record<string, string[]> }>(`/api/dataset/${collectionId}/tags`);
+                return data.tags;
+            },
+        };
     }
+
+    // ── Private helpers ──────────────────────────────────────────────────────
 
     private getHeaders(): Record<string, string> {
         const headers: Record<string, string> = {
@@ -62,6 +365,33 @@ export class CoreViz {
             headers['x-api-key'] = this.apiKey || "";
         }
         return headers;
+    }
+
+    /** Resolve the current user's org ID (cached after first call) */
+    private async _me(): Promise<UserContext> {
+        const data = await this._fetch<UserContext>('/api/me');
+        if (!this._orgIdCache) this._orgIdCache = data.organizationId;
+        return data;
+    }
+
+    /** GET request helper for management endpoints */
+    private async _fetch<T>(path: string): Promise<T> {
+        const response = await fetch(`${this._baseUrl}${path}`, {
+            method: 'GET',
+            headers: this.getHeaders(),
+        });
+        return this.handleResponse<T>(response);
+    }
+
+    /** Non-GET request helper for management endpoints */
+    private async _fetchMethod<T = void>(method: string, path: string, body?: unknown): Promise<T> {
+        const response = await fetch(`${this._baseUrl}${path}`, {
+            method,
+            headers: this.getHeaders(),
+            body: body !== undefined ? JSON.stringify(body) : undefined,
+        });
+        if (response.status === 204) return undefined as T;
+        return this.handleResponse<T>(response);
     }
 
     private async handleResponse<T>(response: Response): Promise<T> {

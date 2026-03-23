@@ -221,3 +221,207 @@ Utility function to resize images client-side or server-side before processing. 
 const resized = await coreviz.resize(myFileObject, 800, 600);
 // or import { resize } from '@coreviz/sdk';
 ```
+
+---
+
+## Library Management API
+
+The SDK also exposes namespaced methods for programmatically managing your CoreViz visual library — browsing collections, searching media, organizing folders, and managing tags. These require authentication via a user token (from `coreviz login`) or an API key.
+
+```typescript
+const coreviz = new CoreViz({ token: 'your_session_token' });
+// or: new CoreViz({ apiKey: 'your_api_key' })
+// or: new CoreViz({ token, baseUrl: 'http://localhost:3000' }) // for local dev
+```
+
+### `coreviz.collections.list()`
+
+List all collections in the user's current organization.
+
+**Returns:** `Promise<Collection[]>`
+
+```typescript
+const collections = await coreviz.collections.list();
+// [{ id, name, icon, type, organizationId }, ...]
+```
+
+---
+
+### `coreviz.collections.create(name, icon?)`
+
+Create a new collection in the user's current organization.
+
+**Parameters:**
+- `name` (string): Collection name.
+- `icon` (string, optional): Emoji or icon name.
+
+**Returns:** `Promise<Collection>`
+
+```typescript
+const collection = await coreviz.collections.create('Product Photos', '📦');
+```
+
+---
+
+### `coreviz.media.browse(collectionId, options?)`
+
+List media items and folders inside a collection. Navigates the ltree folder hierarchy.
+
+**Parameters:**
+- `collectionId` (string): The collection to browse.
+- `options` (object, optional):
+  - `path` (string): ltree path to list (e.g. `"collectionId.folderId"`). Defaults to collection root.
+  - `limit` / `offset` (number): Pagination.
+  - `type` (`'image' | 'video' | 'folder' | 'all'`): Filter by type.
+  - `dateFrom` / `dateTo` (string): Filter by creation date (`YYYY-MM-DD`).
+  - `sortBy` / `sortDirection`: Sort options.
+  - `tagFilters` (`Record<string, string[]>`): Filter by tag groups.
+
+**Returns:** `Promise<BrowseResult>` — `{ media: Media[], pagination }`
+
+```typescript
+const { media } = await coreviz.media.browse('abc123', { path: 'abc123.folderXyz', limit: 50 });
+```
+
+---
+
+### `coreviz.media.search(query, options?)`
+
+Semantically search across all media in the organization using natural language.
+
+**Parameters:**
+- `query` (string): Natural language search query.
+- `options.limit` (number, optional): Max results (default 20).
+
+**Returns:** `Promise<SearchResult[]>` — each result includes `mediaId`, `blobUrl`, `objects`, `rank`, `caption`.
+
+```typescript
+const results = await coreviz.media.search('red shoes on a white background', { limit: 10 });
+```
+
+---
+
+### `coreviz.media.get(mediaId)`
+
+Get full details for a media item: blob URL, dimensions, tags, detected objects, and version info.
+
+**Returns:** `Promise<Media>`
+
+```typescript
+const item = await coreviz.media.get('mediaId123');
+console.log(item.blob, item.metadata?.tags, item.frames);
+```
+
+---
+
+### `coreviz.media.rename(mediaId, name)`
+
+Rename a media item.
+
+**Returns:** `Promise<Media>`
+
+```typescript
+await coreviz.media.rename('mediaId123', 'hero-shot-final.jpg');
+```
+
+---
+
+### `coreviz.media.move(mediaId, destinationPath)`
+
+Move a media item or folder to a different location within the same collection.
+
+**Parameters:**
+- `destinationPath` (string): ltree path of the destination folder (e.g. `"collectionId.targetFolder"`).
+
+**Returns:** `Promise<{ id, newPath }>`
+
+```typescript
+await coreviz.media.move('mediaId123', 'collectionId.archiveFolder');
+```
+
+---
+
+### `coreviz.media.addTag(mediaId, label, value)` / `removeTag(...)`
+
+Add or remove a tag from a media item. Tags are `label` (group) + `value` pairs.
+
+```typescript
+await coreviz.media.addTag('mediaId123', 'color', 'red');
+await coreviz.media.removeTag('mediaId123', 'color', 'red');
+```
+
+---
+
+### `coreviz.media.findSimilar(collectionId, objectId, options?)`
+
+Find visually similar media using a detected object ID (from `media.get()` frames).
+
+**Parameters:**
+- `collectionId` (string): The collection to search within.
+- `objectId` (string): ID of a detected object to use as the similarity query.
+- `options.model` (string): `'faces'`, `'objects'`, or `'shoeprints'`.
+
+**Returns:** `Promise<BrowseResult>`
+
+```typescript
+const similar = await coreviz.media.findSimilar('collectionId', 'objectId456', { model: 'faces' });
+```
+
+---
+
+### `coreviz.folders.create(collectionId, name, path?)`
+
+Create a new folder inside a collection.
+
+**Returns:** `Promise<Folder>`
+
+```typescript
+const folder = await coreviz.folders.create('collectionId', 'Spring 2025', 'collectionId.campaigns');
+```
+
+---
+
+### `coreviz.tags.list(collectionId)`
+
+Aggregate all tag groups and values across an entire collection.
+
+**Returns:** `Promise<Record<string, string[]>>`
+
+```typescript
+const tags = await coreviz.tags.list('collectionId');
+// { color: ['red', 'blue'], category: ['product', 'lifestyle'] }
+```
+
+---
+
+### `coreviz.media.upload(file, options)`
+
+Upload a photo or video to CoreViz.
+
+**Parameters:**
+- `file`: Local file path string (Node.js), `File` object (browser), or `Blob`
+- `options`:
+  - `collectionId` (string, required): Target collection
+  - `path` (string, optional): ltree folder path (e.g. `"collectionId.folderId"`). Defaults to collection root.
+  - `name` (string, optional): Override the file name stored in CoreViz
+
+**Returns:** `Promise<UploadResult>` — `{ mediaId, url, message }`
+
+**Supported formats:** JPEG, PNG, GIF, WebP, HEIC, MP4, WebM, MOV, AVI
+
+```typescript
+// Node.js — local file path
+const result = await coreviz.media.upload('/path/to/photo.jpg', {
+  collectionId: 'abc123',
+  path: 'abc123.campaignFolder',
+  name: 'hero-shot.jpg',
+});
+console.log(result.mediaId, result.url);
+
+// Browser — File object
+const result = await coreviz.media.upload(fileInputEvent.target.files[0], {
+  collectionId: 'abc123',
+});
+```
+
+> **Note:** File path strings are not supported on React Native / Expo. Pass a `File` or `Blob` object instead.
