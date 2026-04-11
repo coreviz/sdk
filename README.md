@@ -217,6 +217,44 @@ The SDK also exposes namespaced methods for programmatically managing your CoreV
 
 ---
 
+## Account
+
+### `coreviz.me()`
+
+Return the current authenticated user and their default organization.
+
+**Returns:** `Promise<UserContext>` — `{ userId, email, name, organizationId, organizationName }`
+
+```typescript
+const { name, email, organizationId } = await coreviz.me();
+```
+
+---
+
+### `coreviz.baseUrl`
+
+The API base URL this instance is configured to use (read-only getter).
+
+```typescript
+console.log(coreviz.baseUrl); // 'https://lab.coreviz.io'
+```
+
+---
+
+## Organizations
+
+### `coreviz.organizations.list()`
+
+List all organizations the current user belongs to. Falls back to the user's default organization if the org-list endpoint is unavailable.
+
+**Returns:** `Promise<Organization[]>` — each `{ id, name, slug }`
+
+```typescript
+const orgs = await coreviz.organizations.list();
+```
+
+---
+
 ## Collections
 
 ### `coreviz.collections.list(organizationId?)`
@@ -245,14 +283,20 @@ const collection = await coreviz.collections.get('abc123');
 
 ---
 
-### `coreviz.collections.create(name, icon?)`
+### `coreviz.collections.create(name, icon?, organizationId?)`
 
 Create a new collection.
+
+- `organizationId` (string, optional): Target organization. Defaults to the current user's organization.
 
 **Returns:** `Promise<Collection>`
 
 ```typescript
+// Create in current user's org
 const collection = await coreviz.collections.create('Product Photos', '📦');
+
+// Create in a specific org
+const collection = await coreviz.collections.create('Product Photos', '📦', 'org_abc123');
 ```
 
 ---

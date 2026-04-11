@@ -144,6 +144,20 @@ export interface UploadResult {
 
 // ── Namespace interfaces ─────────────────────────────────────────────────────
 
+export interface Organization {
+    id: string;
+    name: string;
+    slug: string;
+}
+
+export interface OrganizationsNamespace {
+    /**
+     * List all organizations the current user belongs to.
+     * Returns at minimum the user's default organization from /api/me.
+     */
+    list(): Promise<Organization[]>;
+}
+
 export interface CollectionsNamespace {
     /**
      * List all collections in an organization.
@@ -152,8 +166,13 @@ export interface CollectionsNamespace {
     list(organizationId?: string): Promise<Collection[]>;
     /** Get a single collection by ID */
     get(collectionId: string): Promise<Collection>;
-    /** Create a new collection in the user's current organization */
-    create(name: string, icon?: string): Promise<Collection>;
+    /**
+     * Create a new collection.
+     * @param name - Display name for the collection.
+     * @param icon - Optional emoji or icon name.
+     * @param organizationId - Target organization. Defaults to the current user's organization.
+     */
+    create(name: string, icon?: string, organizationId?: string): Promise<Collection>;
     /** Update a collection's name or icon */
     update(collectionId: string, updates: CollectionUpdateOptions): Promise<Collection>;
 }
@@ -258,6 +277,7 @@ export class CoreViz {
     private _orgIdCache: string | null = null;
 
     public collections: CollectionsNamespace;
+    public organizations: OrganizationsNamespace;
     public media: MediaNamespace;
     public folders: FoldersNamespace;
     public tags: TagsNamespace;
@@ -268,6 +288,21 @@ export class CoreViz {
         this._baseUrl = config.baseUrl || 'https://lab.coreviz.io';
 
         // ── Management namespaces ────────────────────────────────────────────
+
+        this.organizations = {
+            list: async (): Promise<Organization[]> => {
+                // Try the Better Auth organization list endpoint first
+                try {
+                    const data = await this._fetch<Organization[] | { organizations: Organization[] }>('/api/auth/organization/list');
+                    const orgs = Array.isArray(data) ? data : (data as any).organizations ?? [];
+                    if (orgs.length > 0) return orgs;
+                } catch { /* endpoint may not exist on all deployments */ }
+
+                // Fall back to the single org returned by /api/me
+                const me = await this._me();
+                return [{ id: me.organizationId, name: me.organizationName ?? me.organizationId, slug: me.organizationId }];
+            },
+        };
 
         this.collections = {
             list: async (organizationId?: string): Promise<Collection[]> => {
@@ -281,9 +316,9 @@ export class CoreViz {
                 return data.dataset;
             },
 
-            create: async (name: string, icon?: string): Promise<Collection> => {
-                const { organizationId } = await this._me();
-                const data = await this._fetchMethod<{ dataset: Collection }>('POST', `/api/organization/${organizationId}/datasets`, {
+            create: async (name: string, icon?: string, organizationId?: string): Promise<Collection> => {
+                const orgId = organizationId || (await this._me()).organizationId;
+                const data = await this._fetchMethod<{ dataset: Collection }>('POST', `/api/organization/${orgId}/datasets`, {
                     name,
                     ...(icon ? { icon } : {}),
                 });
@@ -466,6 +501,18 @@ export class CoreViz {
                 return data.tags;
             },
         };
+    }
+
+    // ── Public helpers ───────────────────────────────────────────────────────
+
+    /** Return the current authenticated user and their default organization. */
+    async me(): Promise<UserContext> {
+        return this._me();
+    }
+
+    /** The API base URL this instance is configured to use. */
+    get baseUrl(): string {
+        return this._baseUrl;
     }
 
     // ── Private helpers ──────────────────────────────────────────────────────
