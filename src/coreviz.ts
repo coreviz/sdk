@@ -169,7 +169,7 @@ export interface CollectionsNamespace {
     /**
      * Create a new collection.
      * @param name - Display name for the collection.
-     * @param icon - Optional emoji or icon name.
+     * @param icon - Optional lucide icon name.
      * @param organizationId - Target organization. Defaults to the current user's organization.
      */
     create(name: string, icon?: string, organizationId?: string): Promise<Collection>;
@@ -318,11 +318,12 @@ export class CoreViz {
 
             create: async (name: string, icon?: string, organizationId?: string): Promise<Collection> => {
                 const orgId = organizationId || (await this._me()).organizationId;
-                const data = await this._fetchMethod<{ dataset: Collection }>('POST', `/api/organization/${orgId}/datasets`, {
+                const data = await this._fetchMethod<any>('POST', `/api/organization/${orgId}/datasets`, {
                     name,
                     ...(icon ? { icon } : {}),
                 });
-                return data.dataset;
+                // API returns the collection directly (not wrapped in { dataset: ... })
+                return data.dataset ?? data;
             },
 
             update: async (collectionId: string, updates: CollectionUpdateOptions): Promise<Collection> => {
