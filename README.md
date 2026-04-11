@@ -64,162 +64,149 @@ Notes:
 
 ## Configuration
 
-To use the AI features, you need to instantiate the `CoreViz` class with your API key.
-
 ```typescript
 import { CoreViz } from '@coreviz/sdk';
 
-const coreviz = new CoreViz({
-    apiKey: process.env.COREVIZ_API_KEY // or 'your_api_key_here'
-});
+// External use — API key
+const coreviz = new CoreViz({ apiKey: process.env.COREVIZ_API_KEY });
+
+// CLI / server — session token
+const coreviz = new CoreViz({ token: 'your_session_token' });
+
+// Self-hosted or local dev — override base URL
+const coreviz = new CoreViz({ apiKey: '...', baseUrl: 'http://localhost:3000' });
+
+// Browser same-origin — no credentials needed; session cookie is used automatically
+const coreviz = new CoreViz({ baseUrl: window.location.origin });
 ```
 
-## API Reference
+---
+
+## Vision AI Methods
 
 ### `coreviz.describe(image)`
 
 Generates a detailed text description of an image.
 
 **Parameters:**
-- `image` (string): The image to describe. Can be a base64 string or a URL.
+- `image` (string): Base64 data URL or remote URL.
 
-**Returns:**
-- `Promise<string>`: A text description of the image.
-
-**Example:**
+**Returns:** `Promise<string>`
 
 ```typescript
 const description = await coreviz.describe('https://example.com/image.jpg');
-console.log(description);
 ```
+
+---
 
 ### `coreviz.tag(image, options)`
 
-Analyzes an image and returns relevant tags or classifications based on a prompt.
+Analyzes an image and returns tags or classifications based on a prompt.
 
 **Parameters:**
-- `image` (string): The image to analyze. Can be a base64 string or a URL.
-- `options` (object):
-  - `prompt` (string): The context or question to guide the tagging (e.g., "What objects are in this image?").
-  - `options` (string[], optional): A specific list of tags to choose from.
-  - `multiple` (boolean, optional): Whether to allow multiple tags (default: `true`).
+- `image` (string): Base64 data URL or remote URL.
+- `options`:
+  - `prompt` (string): Question to guide tagging (e.g. `"What color is the car?"`).
+  - `options` (string[], optional): Restrict answers to this list.
+  - `multiple` (boolean, optional): Allow multiple tags (default: `true`).
+  - `mode` (`'api' | 'local'`, optional): `'local'` runs fully in-browser via transformers.js.
 
-**Returns:**
-- `Promise<TagResponse>`: An object containing:
-  - `tags` (string[]): The list of identified tags.
-  - `raw` (unknown): The raw API response.
-
-**Example:**
+**Returns:** `Promise<TagResponse>` — `{ tags: string[], raw }`
 
 ```typescript
-const result = await coreviz.tag('base64_image_string...', {
-  prompt: "Is this indoor or outdoor?",
-  options: ["indoor", "outdoor"],
-  multiple: false
+const { tags } = await coreviz.tag(imageUrl, {
+  prompt: 'Is this indoor or outdoor?',
+  options: ['indoor', 'outdoor'],
+  multiple: false,
 });
-console.log(result.tags); // ["indoor"]
 ```
+
+---
 
 ### `coreviz.edit(image, options)`
 
-Modifies an image based on a text prompt using generative AI.
+Edits an image using a generative AI prompt.
 
 **Parameters:**
-- `image` (string): The image to edit. Can be a base64 string or a URL.
-- `options` (object):
+- `image` (string): Base64 data URL or remote URL.
+- `options`:
   - `prompt` (string): Description of the desired edit.
-  - `aspectRatio` (string, optional): Target aspect ratio (`'match_input_image'`, `'1:1'`, `'16:9'`, `'9:16'`, `'4:3'`, `'3:4'`).
-  - `outputFormat` (string, optional): `'jpg'` or `'png'`.
-  - `model` (string, optional): The model to use (default: `'flux-kontext-max'`).
+  - `aspectRatio` (string, optional): `'match_input_image'` | `'1:1'` | `'16:9'` | `'9:16'` | `'4:3'` | `'3:4'`.
+  - `outputFormat` (`'jpg' | 'png'`, optional).
+  - `model` (string, optional): `'flux-kontext-max'` | `'google/nano-banana'` | `'seedream-4'`. Default: `'flux-kontext-max'`.
 
-**Returns:**
-- `Promise<string>`: The edited image as a base64 string or URL.
-
-**Example:**
+**Returns:** `Promise<string>` — edited image URL or base64.
 
 ```typescript
-const editedImage = await coreviz.edit('https://example.com/photo.jpg', {
-  prompt: "Make it look like a painting",
-  aspectRatio: "1:1"
+const edited = await coreviz.edit('https://example.com/photo.jpg', {
+  prompt: 'Make it look like a watercolor painting',
+  aspectRatio: '1:1',
 });
 ```
 
-### `coreviz.generate(prompt, options)`
+---
 
-Generates an image based on a text prompt, optionally using reference images for style/structure guidance.
+### `coreviz.generate(prompt, options?)`
+
+Generates an image from a text prompt, optionally guided by reference images.
 
 **Parameters:**
-- `prompt` (string): The text description of the image(s) to generate.
-- `options` (object, optional):
-  - `referenceImages` (string[], optional): Array of reference images (URL/base64) to guide generation.
-  - `aspectRatio` (string, optional): Target aspect ratio (e.g., `'1:1'`, `'16:9'`, `'4:3'`).
-  - `model` (string, optional): The model to use (default: `'google/nano-banana-pro'`).
+- `prompt` (string): Text description.
+- `options` (optional):
+  - `referenceImages` (string[]): Reference images (URL/base64) to guide style or structure.
+  - `aspectRatio` (string): e.g. `'1:1'`, `'16:9'`, `'4:3'`.
+  - `model` (string): `'google/nano-banana'` | `'google/nano-banana-pro'` | `'seedream-4'` | `'flux-kontext-max'`. Default: `'google/nano-banana-pro'`.
 
-**Returns:**
-- `string`: The generated images as a URL.
-
-**Example:**
+**Returns:** `Promise<string>` — generated image URL.
 
 ```typescript
-const images = await coreviz.generate("A futuristic city skyline", {
-  aspectRatio: "16:9"
-});
+const image = await coreviz.generate('A futuristic city at dusk', { aspectRatio: '16:9' });
 ```
+
+---
 
 ### `coreviz.embed(input, options?)`
 
 Generates embeddings for image or text inputs, enabling semantic search and similarity comparison. Use with `coreviz.similarity(embeddingA, embeddingB)` to compare two images or an image and a text.
 
 **Parameters:**
-- `input` (string): The text string or image (URL/base64) to embed.
-- `options` (object, optional):
-  - `type` ('image' | 'text', optional): Explicitly define the input type.
-  - `mode` ('api' | 'local', optional): Execution mode (default: `'api'`). `'local'` runs in-browser/node using transformers.js.
+- `input` (string): Text string, image URL, or base64 data URL.
+- `options` (optional):
+  - `type` (`'image' | 'text'`): Explicit type hint (auto-detected if omitted).
+  - `mode` (`'api' | 'local'`): `'local'` runs in-browser using transformers.js. Default: `'api'`.
 
-**Returns:**
-- `Promise<EmbedResponse>`: An object containing:
-  - `embedding` (number[]): The high-dimensional vector representation.
-
-**Example:**
+**Returns:** `Promise<EmbedResponse>` — `{ embedding: number[] }`
 
 ```typescript
-const { embedding } = await coreviz.embed('A photo of a sunset');
+const { embedding } = await coreviz.embed('A photo of a red sneaker');
 ```
 
-### `coreviz.similarity(embeddingA, embeddingB)`
+---
+
+### `coreviz.similarity(vecA, vecB)`
 
 Calculates the degree of similarity between two embeddings.
 
 **Parameters:**
-- `embeddingA` (number[]): The first image/text embedding.
-- `embeddingB` (number[]): The second image/text embedding.
+- `vecA`, `vecB` (number[]): Embedding vectors from `embed()`.
 
-**Returns:**
-- `number`: A similarity score between -1 and 1.
-
-**Example:**
+**Returns:** `number` — score between -1 and 1.
 
 ```typescript
-const similarity = coreviz.similarity(embeddingA, embeddingB);
+const score = coreviz.similarity(embeddingA, embeddingB);
 ```
+
+---
 
 ### `coreviz.resize(input, maxWidth?, maxHeight?)`
 
-Utility function to resize images client-side or server-side before processing. Also available as a standalone import.
+Resizes an image client-side (canvas) or server-side (Sharp). Also available as a standalone import.
 
-**Parameters:**
-- `input` (string | File): The image to resize.
-- `maxWidth` (number, optional): Maximum width (default: 1920).
-- `maxHeight` (number, optional): Maximum height (default: 1080).
-
-**Returns:**
-- `Promise<string>`: The resized image as a base64 string.
-
-**Example:**
+**Returns:** `Promise<string>` — base64 data URL.
 
 ```typescript
-const resized = await coreviz.resize(myFileObject, 800, 600);
-// or import { resize } from '@coreviz/sdk';
+const resized = await coreviz.resize(file, 800, 600);
+// or: import { resize } from '@coreviz/sdk';
 ```
 
 ---
@@ -228,32 +215,39 @@ const resized = await coreviz.resize(myFileObject, 800, 600);
 
 The SDK also exposes namespaced methods for programmatically managing your CoreViz visual library — browsing collections, searching media, organizing folders, and managing tags. These require authentication via a user token (from `coreviz login`) or an API key.
 
-```typescript
-const coreviz = new CoreViz({ token: 'your_session_token' });
-// or: new CoreViz({ apiKey: 'your_api_key' })
-// or: new CoreViz({ token, baseUrl: 'http://localhost:3000' }) // for local dev
-```
+---
 
-### `coreviz.collections.list()`
+## Collections
 
-List all collections in the user's current organization.
+### `coreviz.collections.list(organizationId?)`
+
+List all collections in an organization.
+
+- `organizationId` (string, optional): Pass explicitly to skip the `/api/me` round-trip.
 
 **Returns:** `Promise<Collection[]>`
 
 ```typescript
 const collections = await coreviz.collections.list();
-// [{ id, name, icon, type, organizationId }, ...]
+```
+
+---
+
+### `coreviz.collections.get(collectionId)`
+
+Get a single collection by ID.
+
+**Returns:** `Promise<Collection>`
+
+```typescript
+const collection = await coreviz.collections.get('abc123');
 ```
 
 ---
 
 ### `coreviz.collections.create(name, icon?)`
 
-Create a new collection in the user's current organization.
-
-**Parameters:**
-- `name` (string): Collection name.
-- `icon` (string, optional): Emoji or icon name.
+Create a new collection.
 
 **Returns:** `Promise<Collection>`
 
@@ -263,47 +257,78 @@ const collection = await coreviz.collections.create('Product Photos', '📦');
 
 ---
 
-### `coreviz.media.browse(collectionId, options?)`
+### `coreviz.collections.update(collectionId, updates)`
 
-List media items and folders inside a collection. Navigates the ltree folder hierarchy.
+Update a collection's name or icon.
 
 **Parameters:**
-- `collectionId` (string): The collection to browse.
-- `options` (object, optional):
-  - `path` (string): ltree path to list (e.g. `"collectionId.folderId"`). Defaults to collection root.
-  - `limit` / `offset` (number): Pagination.
-  - `type` (`'image' | 'video' | 'folder' | 'all'`): Filter by type.
-  - `dateFrom` / `dateTo` (string): Filter by creation date (`YYYY-MM-DD`).
-  - `sortBy` / `sortDirection`: Sort options.
-  - `tagFilters` (`Record<string, string[]>`): Filter by tag groups.
+- `updates`: `{ name?: string; icon?: string }`
+
+**Returns:** `Promise<Collection>`
+
+```typescript
+await coreviz.collections.update('abc123', { name: 'Campaign Assets 2025' });
+```
+
+---
+
+## Media
+
+### `coreviz.media.browse(collectionId, options?)`
+
+List media and folders inside a collection. Supports browsing, filtering, searching, and similarity queries all through the same method.
+
+**Options:**
+| Field | Type | Description |
+|---|---|---|
+| `path` | string | ltree path to list (e.g. `"collId.folderId"`). Defaults to collection root. |
+| `limit` / `offset` | number | Pagination. |
+| `type` | `'image' \| 'video' \| 'folder' \| 'all'` | Filter by media type. |
+| `dateFrom` / `dateTo` | string | Date range filter (`YYYY-MM-DD`). |
+| `sortBy` / `sortDirection` | string | Sort field and direction (`'asc' \| 'desc'`). |
+| `tagFilters` | `Record<string, string[]>` | AND between groups, OR within group. |
+| `q` | string | Text/semantic search query (triggers scored mode). |
+| `similarToObjectId` | string | Find visually similar media by detected object ID. |
+| `similarToObjectModel` | string | Vision model for similarity scoring. |
+| `tags` | string | Comma-separated tag label filter. |
+| `mediaId` | string | Filter to a specific media item. |
+| `clusterId` | string | Filter to a specific object cluster. |
+| `recursive` | boolean | List all descendants recursively (flattened view). |
 
 **Returns:** `Promise<BrowseResult>` — `{ media: Media[], pagination }`
 
 ```typescript
-const { media } = await coreviz.media.browse('abc123', { path: 'abc123.folderXyz', limit: 50 });
+// Browse a folder
+const { media } = await coreviz.media.browse('collId', { path: 'collId.folderXyz', limit: 50 });
+
+// In-folder semantic search
+const { media: results } = await coreviz.media.browse('collId', { q: 'red shoes' });
+
+// Find similar media by object
+const { media: similar } = await coreviz.media.browse('collId', { similarToObjectId: 'objId' });
 ```
 
 ---
 
 ### `coreviz.media.search(query, options?)`
 
-Semantically search across all media in the organization using natural language.
+Semantically search across all media in the organization.
 
-**Parameters:**
-- `query` (string): Natural language search query.
-- `options.limit` (number, optional): Max results (default 20).
+**Options:**
+- `limit` (number): Max results.
+- `organizationId` (string): Pass explicitly to skip the `/api/me` round-trip.
 
 **Returns:** `Promise<SearchResult[]>` — each result includes `mediaId`, `blobUrl`, `objects`, `rank`, `caption`.
 
 ```typescript
-const results = await coreviz.media.search('red shoes on a white background', { limit: 10 });
+const results = await coreviz.media.search('sunset over water', { limit: 10 });
 ```
 
 ---
 
 ### `coreviz.media.get(mediaId)`
 
-Get full details for a media item: blob URL, dimensions, tags, detected objects, and version info.
+Get full details for a media item including blob URL, dimensions, metadata, detected objects, and frames.
 
 **Returns:** `Promise<Media>`
 
@@ -328,55 +353,91 @@ await coreviz.media.rename('mediaId123', 'hero-shot-final.jpg');
 
 ### `coreviz.media.move(mediaId, destinationPath)`
 
-Move a media item or folder to a different location within the same collection.
+Move a media item to a different folder within the same collection.
 
-**Parameters:**
-- `destinationPath` (string): ltree path of the destination folder (e.g. `"collectionId.targetFolder"`).
+- `destinationPath` (string): ltree path of the destination folder.
 
 **Returns:** `Promise<{ id, newPath }>`
 
 ```typescript
-await coreviz.media.move('mediaId123', 'collectionId.archiveFolder');
+await coreviz.media.move('mediaId123', 'collId.archiveFolder');
 ```
 
 ---
 
-### `coreviz.media.addTag(mediaId, label, value)` / `removeTag(...)`
+### `coreviz.media.delete(mediaId)`
 
-Add or remove a tag from a media item. Tags are `label` (group) + `value` pairs.
+Permanently delete a media item.
+
+```typescript
+await coreviz.media.delete('mediaId123');
+```
+
+---
+
+### `coreviz.media.upload(file, options)`
+
+Upload a photo or video.
+
+**Parameters:**
+- `file`: Local file path string (Node.js), `File` (browser), or `Blob`.
+- `options`:
+  - `collectionId` (string, required)
+  - `path` (string, optional): Destination ltree folder path.
+  - `name` (string, optional): Override stored file name.
+
+**Returns:** `Promise<UploadResult>` — `{ mediaId, url, message }`
+
+```typescript
+// Node.js
+const result = await coreviz.media.upload('/path/to/photo.jpg', { collectionId: 'abc123' });
+
+// Browser
+const result = await coreviz.media.upload(file, { collectionId: 'abc123', path: 'abc123.folder' });
+```
+
+> File path strings are not supported on React Native / Expo. Pass a `File` or `Blob` instead.
+
+---
+
+## Tags
+
+### `coreviz.media.addTag(mediaId, label, value)`
+
+Add a tag to a media item. Tags are `label` (group) + `value` pairs.
 
 ```typescript
 await coreviz.media.addTag('mediaId123', 'color', 'red');
+```
+
+---
+
+### `coreviz.media.removeTag(mediaId, label, value)`
+
+Remove a specific tag value from a media item.
+
+```typescript
 await coreviz.media.removeTag('mediaId123', 'color', 'red');
 ```
 
 ---
 
-### `coreviz.media.findSimilar(collectionId, objectId, options?)`
+### `coreviz.media.removeTagGroup(mediaId, label)`
 
-Find visually similar media using a detected object ID (from `media.get()` frames).
-
-**Parameters:**
-- `collectionId` (string): The collection to search within.
-- `objectId` (string): ID of a detected object to use as the similarity query.
-- `options.model` (string): `'faces'`, `'objects'`, or `'shoeprints'`.
-
-**Returns:** `Promise<BrowseResult>`
+Remove an entire tag group (all values under that label) from a media item.
 
 ```typescript
-const similar = await coreviz.media.findSimilar('collectionId', 'objectId456', { model: 'faces' });
+await coreviz.media.removeTagGroup('mediaId123', 'color');
 ```
 
 ---
 
-### `coreviz.folders.create(collectionId, name, path?)`
+### `coreviz.media.renameTagGroup(mediaId, oldLabel, newLabel)`
 
-Create a new folder inside a collection.
-
-**Returns:** `Promise<Folder>`
+Rename a tag group on a media item, preserving all its values.
 
 ```typescript
-const folder = await coreviz.folders.create('collectionId', 'Spring 2025', 'collectionId.campaigns');
+await coreviz.media.renameTagGroup('mediaId123', 'colour', 'color');
 ```
 
 ---
@@ -388,40 +449,122 @@ Aggregate all tag groups and values across an entire collection.
 **Returns:** `Promise<Record<string, string[]>>`
 
 ```typescript
-const tags = await coreviz.tags.list('collectionId');
+const tags = await coreviz.tags.list('collId');
 // { color: ['red', 'blue'], category: ['product', 'lifestyle'] }
 ```
 
 ---
 
-### `coreviz.media.upload(file, options)`
+## Versions
 
-Upload a photo or video to CoreViz.
+Media items in CoreViz track edit history as versions. Each AI edit or bulk operation creates a new version linked to the original.
 
-**Parameters:**
-- `file`: Local file path string (Node.js), `File` object (browser), or `Blob`
-- `options`:
-  - `collectionId` (string, required): Target collection
-  - `path` (string, optional): ltree folder path (e.g. `"collectionId.folderId"`). Defaults to collection root.
-  - `name` (string, optional): Override the file name stored in CoreViz
+### `coreviz.media.listVersions(mediaId)`
 
-**Returns:** `Promise<UploadResult>` — `{ mediaId, url, message }`
+List all versions of a media item (original + all AI-edited derivatives).
 
-**Supported formats:** JPEG, PNG, GIF, WebP, HEIC, MP4, WebM, MOV, AVI
+**Returns:** `Promise<Media[]>`
 
 ```typescript
-// Node.js — local file path
-const result = await coreviz.media.upload('/path/to/photo.jpg', {
-  collectionId: 'abc123',
-  path: 'abc123.campaignFolder',
-  name: 'hero-shot.jpg',
-});
-console.log(result.mediaId, result.url);
-
-// Browser — File object
-const result = await coreviz.media.upload(fileInputEvent.target.files[0], {
-  collectionId: 'abc123',
-});
+const versions = await coreviz.media.listVersions('mediaId123');
 ```
 
-> **Note:** File path strings are not supported on React Native / Expo. Pass a `File` or `Blob` object instead.
+---
+
+### `coreviz.media.selectVersion(versionId)`
+
+Mark a version as the active/current version.
+
+```typescript
+await coreviz.media.selectVersion('versionId456');
+```
+
+---
+
+### `coreviz.media.deleteVersion(rootMediaId, versionId)`
+
+Delete a specific version. If the deleted version was active, the server promotes another version automatically.
+
+**Returns:** `Promise<{ deletedId: string; promotedId: string | null }>`
+
+```typescript
+const { promotedId } = await coreviz.media.deleteVersion('rootMediaId', 'versionId456');
+if (promotedId) {
+  // navigate to promoted version
+}
+```
+
+---
+
+## Similarity Search
+
+### `coreviz.media.findSimilar(collectionId, objectId, options?)`
+
+Find visually similar media using a detected object ID (from `media.get()` frames).
+
+**Options:**
+- `limit` (number)
+- `model` (string): e.g. `'faces'`, `'objects'`, `'shoeprints'`.
+
+**Returns:** `Promise<BrowseResult>`
+
+```typescript
+const { media } = await coreviz.media.findSimilar('collId', 'objectId456', { model: 'faces' });
+```
+
+---
+
+## Folders
+
+### `coreviz.folders.create(collectionId, name, path?, reuse?)`
+
+Create a new folder inside a collection.
+
+- `path` (string, optional): Parent ltree path. Defaults to collection root.
+- `reuse` (boolean, optional): When `true`, returns the existing folder if one with the same name already exists at that path (upsert behavior).
+
+**Returns:** `Promise<Folder>`
+
+```typescript
+const folder = await coreviz.folders.create('collId', 'Spring 2025', 'collId.campaigns');
+
+// Upsert — safe to call repeatedly
+const folder = await coreviz.folders.create('collId', 'Imports', undefined, true);
+```
+
+---
+
+### `coreviz.folders.get(folderId)`
+
+Get a folder by ID.
+
+**Returns:** `Promise<Folder>`
+
+```typescript
+const folder = await coreviz.folders.get('folderId123');
+```
+
+---
+
+### `coreviz.folders.update(folderId, updates)`
+
+Update a folder's name or metadata.
+
+**Parameters:**
+- `updates`: `{ name?: string; metadata?: Record<string, unknown> }`
+
+**Returns:** `Promise<Folder>`
+
+```typescript
+await coreviz.folders.update('folderId123', { name: 'Archived Campaign' });
+```
+
+---
+
+### `coreviz.folders.delete(folderId)`
+
+Delete a folder and all its contents.
+
+```typescript
+await coreviz.folders.delete('folderId123');
+```

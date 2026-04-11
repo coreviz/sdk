@@ -70,6 +70,20 @@ export interface BrowseOptions {
     sortBy?: string;
     sortDirection?: 'asc' | 'desc';
     tagFilters?: Record<string, string[]>;
+    /** Text / semantic search query (triggers scored mode on the server) */
+    q?: string;
+    /** Object ID to find visually similar media within this collection */
+    similarToObjectId?: string;
+    /** Vision model used for similarity scoring */
+    similarToObjectModel?: string;
+    /** Comma-separated tag label filter */
+    tags?: string;
+    /** Filter to a specific media item ID */
+    mediaId?: string;
+    /** Filter to a specific cluster ID */
+    clusterId?: string;
+    /** When true, list all descendants recursively (flattened view) */
+    recursive?: boolean;
 }
 
 export interface BrowseResult {
@@ -89,6 +103,23 @@ export interface SearchResult {
 
 export interface SearchOptions {
     limit?: number;
+    /** Pass the organization ID directly to skip the /api/me round-trip. */
+    organizationId?: string;
+}
+
+export interface FolderUpdateOptions {
+    name?: string;
+    metadata?: Record<string, unknown>;
+}
+
+export interface CollectionUpdateOptions {
+    name?: string;
+    icon?: string;
+}
+
+export interface DeleteVersionResult {
+    deletedId: string;
+    promotedId: string | null;
 }
 
 export interface SimilarityOptions {
@@ -114,10 +145,17 @@ export interface UploadResult {
 // ── Namespace interfaces ─────────────────────────────────────────────────────
 
 export interface CollectionsNamespace {
-    /** List all collections in the user's current organization */
-    list(): Promise<Collection[]>;
+    /**
+     * List all collections in an organization.
+     * @param organizationId - If omitted the SDK resolves it via /api/me (one extra round-trip).
+     */
+    list(organizationId?: string): Promise<Collection[]>;
+    /** Get a single collection by ID */
+    get(collectionId: string): Promise<Collection>;
     /** Create a new collection in the user's current organization */
     create(name: string, icon?: string): Promise<Collection>;
+    /** Update a collection's name or icon */
+    update(collectionId: string, updates: CollectionUpdateOptions): Promise<Collection>;
 }
 
 export interface MediaNamespace {
@@ -131,10 +169,22 @@ export interface MediaNamespace {
     rename(mediaId: string, name: string): Promise<Media>;
     /** Move a media item to a new ltree destination path */
     move(mediaId: string, destinationPath: string): Promise<{ id: string; newPath: string }>;
+    /** Permanently delete a media item */
+    delete(mediaId: string): Promise<void>;
     /** Add a tag group+value to a media item */
     addTag(mediaId: string, label: string, value: string): Promise<void>;
-    /** Remove a tag group+value from a media item */
+    /** Remove a specific tag value from a media item */
     removeTag(mediaId: string, label: string, value: string): Promise<void>;
+    /** Remove an entire tag group (all values) from a media item */
+    removeTagGroup(mediaId: string, label: string): Promise<void>;
+    /** Rename a tag group across a media item */
+    renameTagGroup(mediaId: string, oldLabel: string, newLabel: string): Promise<void>;
+    /** List all versions of a media item */
+    listVersions(mediaId: string): Promise<Media[]>;
+    /** Delete a specific version; returns the promoted active version ID if applicable */
+    deleteVersion(rootMediaId: string, versionId: string): Promise<DeleteVersionResult>;
+    /** Mark a version as the active/current version */
+    selectVersion(versionId: string): Promise<void>;
     /** Find visually similar media using an object ID */
     findSimilar(collectionId: string, objectId: string, options?: SimilarityOptions): Promise<BrowseResult>;
     /**
@@ -146,8 +196,17 @@ export interface MediaNamespace {
 }
 
 export interface FoldersNamespace {
-    /** Create a folder inside a collection */
-    create(collectionId: string, name: string, path?: string): Promise<Folder>;
+    /**
+     * Create a folder inside a collection.
+     * @param reuse - When true, return the existing folder if one with the same name already exists at that path (upsert).
+     */
+    create(collectionId: string, name: string, path?: string, reuse?: boolean): Promise<Folder>;
+    /** Get a folder by ID */
+    get(folderId: string): Promise<Folder>;
+    /** Update a folder's name or metadata */
+    update(folderId: string, updates: FolderUpdateOptions): Promise<Folder>;
+    /** Delete a folder and all its contents */
+    delete(folderId: string): Promise<void>;
 }
 
 export interface TagsNamespace {
@@ -211,10 +270,15 @@ export class CoreViz {
         // ── Management namespaces ────────────────────────────────────────────
 
         this.collections = {
-            list: async (): Promise<Collection[]> => {
-                const { organizationId } = await this._me();
-                const data = await this._fetch<Collection[]>(`/api/organization/${organizationId}/datasets`);
+            list: async (organizationId?: string): Promise<Collection[]> => {
+                const orgId = organizationId || (await this._me()).organizationId;
+                const data = await this._fetch<Collection[]>(`/api/organization/${orgId}/datasets`);
                 return Array.isArray(data) ? data : (data as any).datasets ?? [];
+            },
+
+            get: async (collectionId: string): Promise<Collection> => {
+                const data = await this._fetch<{ dataset: Collection }>(`/api/dataset/${collectionId}`);
+                return data.dataset;
             },
 
             create: async (name: string, icon?: string): Promise<Collection> => {
@@ -223,6 +287,11 @@ export class CoreViz {
                     name,
                     ...(icon ? { icon } : {}),
                 });
+                return data.dataset;
+            },
+
+            update: async (collectionId: string, updates: CollectionUpdateOptions): Promise<Collection> => {
+                const data = await this._fetchMethod<{ dataset: Collection }>('PATCH', `/api/dataset/${collectionId}`, updates);
                 return data.dataset;
             },
         };
@@ -239,13 +308,20 @@ export class CoreViz {
                 if (options.sortBy) params.set('sortBy', options.sortBy);
                 if (options.sortDirection) params.set('sortDirection', options.sortDirection);
                 if (options.tagFilters) params.set('tagFilters', JSON.stringify(options.tagFilters));
+                if (options.q) params.set('q', options.q);
+                if (options.similarToObjectId) params.set('similarToObjectId', options.similarToObjectId);
+                if (options.similarToObjectModel) params.set('similarToObjectModel', options.similarToObjectModel);
+                if (options.tags) params.set('tags', options.tags);
+                if (options.mediaId) params.set('mediaId', options.mediaId);
+                if (options.clusterId) params.set('clusterId', options.clusterId);
+                if (options.recursive) params.set('recursive', 'true');
                 const qs = params.toString();
                 return this._fetch<BrowseResult>(`/api/dataset/${collectionId}/media${qs ? `?${qs}` : ''}`);
             },
 
             search: async (query: string, options: SearchOptions = {}): Promise<SearchResult[]> => {
-                const { organizationId } = await this._me();
-                const params = new URLSearchParams({ q: query, organizationId });
+                const orgId = options.organizationId || (await this._me()).organizationId;
+                const params = new URLSearchParams({ q: query, organizationId: orgId });
                 if (options.limit != null) params.set('limit', String(options.limit));
                 const data = await this._fetch<{ results: any[] }>(`/api/search?${params.toString()}`);
                 return (data.results || []).map((r: any) => ({
@@ -273,12 +349,37 @@ export class CoreViz {
                 return this._fetchMethod('PATCH', `/api/media/${mediaId}/move`, { destinationPath });
             },
 
+            delete: async (mediaId: string): Promise<void> => {
+                await this._fetchMethod('DELETE', `/api/media/${mediaId}`);
+            },
+
             addTag: async (mediaId: string, label: string, value: string): Promise<void> => {
                 await this._fetchMethod('POST', `/api/media/${mediaId}/tags`, { label, value });
             },
 
             removeTag: async (mediaId: string, label: string, value: string): Promise<void> => {
                 await this._fetchMethod('DELETE', `/api/media/${mediaId}/tags`, { label, value });
+            },
+
+            removeTagGroup: async (mediaId: string, label: string): Promise<void> => {
+                await this._fetchMethod('DELETE', `/api/media/${mediaId}/tags`, { label });
+            },
+
+            renameTagGroup: async (mediaId: string, oldLabel: string, newLabel: string): Promise<void> => {
+                await this._fetchMethod('PATCH', `/api/media/${mediaId}/tags`, { oldLabel, newLabel });
+            },
+
+            listVersions: async (mediaId: string): Promise<Media[]> => {
+                const data = await this._fetch<{ versions: Media[] }>(`/api/media/${mediaId}/versions`);
+                return data.versions;
+            },
+
+            deleteVersion: async (rootMediaId: string, versionId: string): Promise<DeleteVersionResult> => {
+                return this._fetchMethod('DELETE', `/api/media/${rootMediaId}/versions?versionId=${versionId}`);
+            },
+
+            selectVersion: async (versionId: string): Promise<void> => {
+                await this._fetchMethod('PATCH', `/api/media/${versionId}/select-version`);
             },
 
             findSimilar: async (collectionId: string, objectId: string, options: SimilarityOptions = {}): Promise<BrowseResult> => {
@@ -334,13 +435,28 @@ export class CoreViz {
         };
 
         this.folders = {
-            create: async (collectionId: string, name: string, path?: string): Promise<Folder> => {
+            create: async (collectionId: string, name: string, path?: string, reuse?: boolean): Promise<Folder> => {
                 const data = await this._fetchMethod<{ folder: Folder }>('POST', '/api/folder', {
                     datasetId: collectionId,
                     name,
                     ...(path ? { path } : {}),
+                    ...(reuse ? { reuse: true } : {}),
                 });
                 return data.folder;
+            },
+
+            get: async (folderId: string): Promise<Folder> => {
+                const data = await this._fetch<{ folder: Folder }>(`/api/folder/${folderId}`);
+                return data.folder;
+            },
+
+            update: async (folderId: string, updates: FolderUpdateOptions): Promise<Folder> => {
+                const data = await this._fetchMethod<{ folder: Folder }>('PATCH', `/api/folder/${folderId}`, updates);
+                return data.folder;
+            },
+
+            delete: async (folderId: string): Promise<void> => {
+                await this._fetchMethod('DELETE', `/api/folder/${folderId}`);
             },
         };
 
@@ -361,9 +477,10 @@ export class CoreViz {
 
         if (this.token) {
             headers['Authorization'] = `Bearer ${this.token}`;
-        } else {
-            headers['x-api-key'] = this.apiKey || "";
+        } else if (this.apiKey) {
+            headers['x-api-key'] = this.apiKey;
         }
+        // If neither is set, rely on session cookies (browser same-origin requests).
         return headers;
     }
 
@@ -400,7 +517,10 @@ export class CoreViz {
         }
 
         if (!response.ok) {
-            throw new Error(`Request failed (${response.status})`);
+            // Try to surface the server's error message from the response body.
+            const body = await response.json().catch(() => null) as any;
+            const serverMessage = body?.error || body?.message;
+            throw new Error(serverMessage || `Request failed (${response.status})`);
         }
 
         const data = await response.json() as any;
@@ -417,7 +537,7 @@ export class CoreViz {
             const resizedImage = await resize(image, 512, 512);
             const headers = this.getHeaders();
 
-            const response = await fetch(`https://lab.coreviz.io/api/ai/describe`, {
+            const response = await fetch(`${this._baseUrl}/api/ai/describe`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({ image: resizedImage }),
@@ -435,7 +555,7 @@ export class CoreViz {
             const resizedImage = await resize(image, 1024, 1024);
             const headers = this.getHeaders();
 
-            const response = await fetch(`https://lab.coreviz.io/api/ai/edit`, {
+            const response = await fetch(`${this._baseUrl}/api/ai/edit`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -465,7 +585,7 @@ export class CoreViz {
                 );
             }
 
-            const response = await fetch(`https://lab.coreviz.io/api/ai/generate`, {
+            const response = await fetch(`${this._baseUrl}/api/ai/generate`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -494,7 +614,7 @@ export class CoreViz {
             const resizedImage = await resize(image, 512, 512);
             const headers = this.getHeaders();
 
-            const response = await fetch("https://lab.coreviz.io/api/ai/tag", {
+            const response = await fetch(`${this._baseUrl}/api/ai/tag`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify({
@@ -674,7 +794,7 @@ Output:
                 body.text = input;
             }
 
-            const response = await fetch("https://lab.coreviz.io/api/ai/embed", {
+            const response = await fetch(`${this._baseUrl}/api/ai/embed`, {
                 method: 'POST',
                 headers,
                 body: JSON.stringify(body),
