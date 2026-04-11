@@ -432,8 +432,8 @@ export class CoreViz {
 
                 if (typeof file === 'string') {
                     // Node.js: treat as a file path — dynamic import fs to stay browser-compatible
-                    const fs = await import('fs');
-                    const path = await import('path');
+                    const fs = await import('node:fs');
+                    const path = await import('node:path');
                     const buffer = fs.readFileSync(file);
                     const ext = path.extname(file).slice(1).toLowerCase();
                     const mimeTypes: Record<string, string> = {
@@ -700,7 +700,7 @@ export class CoreViz {
                 AutoModelForImageTextToText,
                 RawImage,
                 env
-            } = await import('@huggingface/transformers');
+            } = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ '@huggingface/transformers');
 
             // Configure transformers.js for browser usage
             env.allowRemoteModels = true;
@@ -864,7 +864,7 @@ Output:
                 CLIPTextModelWithProjection,
                 CLIPVisionModelWithProjection,
                 RawImage
-            } = await import('@huggingface/transformers');
+            } = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ '@huggingface/transformers');
 
 
             const MODEL_ID = 'Xenova/clip-vit-large-patch14';

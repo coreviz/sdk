@@ -83,7 +83,7 @@ async function serverResize(inputStr: string, maxWidth: number, maxHeight: numbe
     try {
         // Dynamic import to prevent bundling sharp on the client
         // Note: `sharp` is an optional dependency (for RN/Expo compatibility). If missing, we gracefully fall back.
-        const sharpModule = await import('sharp');
+        const sharpModule = await import(/* webpackIgnore: true */ /* turbopackIgnore: true */ 'sharp');
         const sharp = sharpModule.default;
 
         let buffer: Buffer;
