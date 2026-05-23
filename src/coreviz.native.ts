@@ -15,9 +15,13 @@ export interface UserContext {
 }
 export interface Collection { id: string; name: string; icon?: string; type: string; organizationId: string; }
 export interface MediaObject { id: string; type: string; label: string; }
-export interface MediaFrame { id: string; timestamp: number; blob: string; objects: MediaObject[]; }
+export interface MediaFrame {
+  id: string; timestamp: number; blob: string; objects: MediaObject[];
+  thumbnailBlob?: string | null; pageNumber?: number | null; endTimestamp?: number | string;
+  width?: number; height?: number; text?: string | null; metadata?: Record<string, unknown>;
+}
 export interface Media {
-  id: string; name: string; type: 'image' | 'video' | 'folder'; blob: string | null;
+  id: string; name: string; type: 'image' | 'video' | 'pdf' | 'folder'; blob: string | null;
   path: string; width?: number; height?: number; sizeBytes?: number;
   metadata?: Record<string, unknown>; frames?: MediaFrame[]; createdAt?: string; _score?: number;
 }

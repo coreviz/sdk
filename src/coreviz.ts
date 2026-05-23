@@ -36,12 +36,19 @@ export interface MediaFrame {
     timestamp: number;
     blob: string;
     objects: MediaObject[];
+    thumbnailBlob?: string | null;
+    pageNumber?: number | null;
+    endTimestamp?: number | string;
+    width?: number;
+    height?: number;
+    text?: string | null;
+    metadata?: Record<string, unknown>;
 }
 
 export interface Media {
     id: string;
     name: string;
-    type: 'image' | 'video' | 'folder';
+    type: 'image' | 'video' | 'pdf' | 'folder';
     blob: string | null;
     path: string;
     width?: number;
